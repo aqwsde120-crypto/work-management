@@ -573,7 +573,7 @@ def show_kanban_board(df):
                 </div>
                 """, unsafe_allow_html=True)
 
-# ==================== 새 프로젝트 추가 ====================
+# ==================== 새 프로젝트/업무 추가 ====================
 def show_add_project():
     st.title("➕ 새 프로젝트/업무 추가")
     st.markdown("---")
@@ -591,7 +591,7 @@ def show_add_project():
         
         with col2:
             category = st.selectbox("분류 *", options=[
-                "규제동향", "허가관리", "실사관리", "협력업체관리", 
+                "규제동향", "허가관리", "실사관리", "협력업체관리",
                 "자율점검", "교육관리", "직무관리", "품질문화", "기타"
             ])
             status = st.selectbox("진행 현황 *", options=["진행 중", "검토 중", "완료", "일정 지연"])
@@ -610,14 +610,14 @@ def show_add_project():
         
         if submitted:
             if not project_name or not title or not assignee:
-                st.error("필수 항목(*)을 모두 입력해주세요!")
+                st.error("❌ 필수 항목(*)을 모두 입력해주세요!")
             else:
                 conn = st.session_state.db_conn
                 c = conn.cursor()
                 assignee_str = ','.join(assignee)
                 
                 c.execute('''
-                INSERT INTO tasks 
+                INSERT INTO tasks
                 (project_name, title, description, assignee, category, status,
                  planned_progress, actual_progress, completion_rate, deadline)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -625,8 +625,13 @@ def show_add_project():
                       planned_progress, actual_progress, completion_rate, deadline.strftime('%Y-%m-%d')))
                 
                 conn.commit()
-                st.success(f"✅ '{title}' 업무가 추가되었습니다!")
-                st.balloons()
+                
+                # 개선된 성공 메시지
+                st.success(f"🎉 '{title}' 업무가 성공적으로 추가되었습니다!")
+                st.balloons()           # 풍선 애니메이션
+                st.toast("프로젝트가 추가되었습니다!", icon="✅")   # 추가 토스트 알림
+                
+                # 잠시 후 자동 새로고침
                 st.rerun()
 
 # ==================== 팀원 관리 ====================
