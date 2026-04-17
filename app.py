@@ -118,7 +118,7 @@ def init_db():
     conn = sqlite3.connect('projects.db', check_same_thread=False)
     c = conn.cursor()
     
-    # tasks 테이블 생성
+    # tasks 테이블 생성 (part 컬럼 추가)
     c.execute('''
     CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,7 +134,8 @@ def init_db():
         deadline DATE,
         approved INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        archived INTEGER DEFAULT 0
+        archived INTEGER DEFAULT 0,
+        part TEXT DEFAULT '미지정'          -- ← 파트 컬럼 추가
     )
     ''')
     
@@ -170,6 +171,8 @@ def load_tasks(show_archived=False):
     df['deadline'] = pd.to_datetime(df['deadline'])
     return df
 
+# ==================== 전역 변수 ====================
+PARTS = ["Compliance", "QMS", "Product", "Validation", "미지정"]
 def load_team_members():
     conn = st.session_state.db_conn
     query = "SELECT * FROM team_members ORDER BY name"
@@ -342,8 +345,8 @@ def show_project_table(df, show_archived=False):
     st.title("📋 프로젝트 테이블")
     st.markdown("---")
     
-    # 필터 영역
-    col1, col2, col3, col4 = st.columns(4)
+    # 필터 영역 (파트 필터 추가)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         search_term = st.text_input("🔍 프로젝트명 또는 업무 제목 검색", "")
     with col2:
@@ -355,6 +358,9 @@ def show_project_table(df, show_archived=False):
     with col4:
         categories = df['category'].unique().tolist()
         selected_category = st.multiselect("🗂️ 분류 필터", options=categories)
+    with col5:
+        parts = df['part'].unique().tolist() if 'part' in df.columns else PARTS
+        selected_part = st.multiselect("📌 파트 필터", options=parts)
     
     # 필터 적용
     filtered_df = df.copy()
@@ -373,77 +379,88 @@ def show_project_table(df, show_archived=False):
         filtered_df = filtered_df[filtered_df['status'].isin(selected_status)]
     if selected_category:
         filtered_df = filtered_df[filtered_df['category'].isin(selected_category)]
+    if selected_part:
+        filtered_df = filtered_df[filtered_df['part'].isin(selected_part)]
     
     st.markdown(f"**총 {len(filtered_df)}개 프로젝트**")
     
-    # ===================== 안전한 테이블 표시 =====================
+    # ===================== 테이블 표시 =====================
     display_df = filtered_df.copy()
     display_df['deadline'] = pd.to_datetime(display_df['deadline']).dt.strftime('%Y-%m-%d')
-    display_df = display_df[['id', 'project_name', 'title', 'assignee', 'category', 'status',
-                             'planned_progress', 'actual_progress', 'completion_rate', 'deadline']]
     
     st.dataframe(
-        display_df,
+        display_df[['id', 'part', 'project_name', 'title', 'assignee', 'category', 'status',
+                    'planned_progress', 'actual_progress', 'completion_rate', 'deadline']],
+        column_config={
+            "id": st.column_config.TextColumn("ID", width="small", disabled=True),
+            "part": st.column_config.TextColumn("파트", width="small"),
+            "project_name": st.column_config.TextColumn("프로젝트명", width="medium"),
+            "title": st.column_config.TextColumn("업무 제목", width="large"),
+            "assignee": st.column_config.TextColumn("담당자", width="medium"),
+            "category": st.column_config.TextColumn("분류", width="small"),
+            "status": st.column_config.TextColumn("진행 현황", width="medium"),
+            "planned_progress": st.column_config.ProgressColumn("계획 일정", format="%d%%"),
+            "actual_progress": st.column_config.ProgressColumn("실제 진행", format="%d%%"),
+            "completion_rate": st.column_config.ProgressColumn("진척률", format="%d%%"),
+            "deadline": st.column_config.TextColumn("마감일"),
+        },
         hide_index=True,
         use_container_width=True,
         height=600
     )
-    
-    # ==================== 개별 수정 (간단 모달) ====================
+
+    # ==================== 개별 수정 ====================
     st.markdown("---")
     st.subheader("✏️ 프로젝트 수정")
-    project_to_edit = st.selectbox(
-        "수정할 프로젝트 선택",
-        options=filtered_df['id'].tolist(),
-        format_func=lambda x: f"{filtered_df[filtered_df['id']==x]['project_name'].iloc[0]} - {filtered_df[filtered_df['id']==x]['title'].iloc[0]}"
-    )
-    
-    if project_to_edit:
-        task = filtered_df[filtered_df['id'] == project_to_edit].iloc[0]
+    if len(filtered_df) > 0:
+        project_to_edit = st.selectbox(
+            "수정할 프로젝트 선택",
+            options=filtered_df['id'].tolist(),
+            format_func=lambda x: f"[{filtered_df[filtered_df['id']==x]['part'].iloc[0]}] "
+                                 f"{filtered_df[filtered_df['id']==x]['project_name'].iloc[0]} - "
+                                 f"{filtered_df[filtered_df['id']==x]['title'].iloc[0]}"
+        )
         
-        with st.form("edit_form"):
-            col1, col2 = st.columns(2)
-            with col1:
-                new_project_name = st.text_input("프로젝트명", value=task['project_name'])
-                new_title = st.text_input("업무 제목", value=task['title'])
-                new_assignee = st.text_input("담당자", value=task['assignee'])
-                new_category = st.selectbox("분류", 
-                    options=["규제동향", "허가관리", "실사관리", "협력업체관리", "자율점검", 
-                             "교육관리", "직무관리", "품질문화", "기타"], 
-                    index=8 if task['category'] not in ["규제동향","허가관리","실사관리","협력업체관리",
-                                                        "자율점검","교육관리","직무관리","품질문화","기타"] 
-                    else ["규제동향","허가관리","실사관리","협력업체관리","자율점검","교육관리","직무관리","품질문화","기타"].index(task['category']))
+        if project_to_edit:
+            task = filtered_df[filtered_df['id'] == project_to_edit].iloc[0]
             
-            with col2:
-                new_status = st.selectbox("진행 현황", 
-                    options=["진행 중", "검토 중", "완료", "일정 지연"],
-                    index=["진행 중", "검토 중", "완료", "일정 지연"].index(task['status']))
-                new_planned = st.slider("계획 일정 (%)", 0, 100, int(task['planned_progress']))
-                new_actual = st.slider("실제 진행 (%)", 0, 100, int(task['actual_progress']))
-                new_completion = st.slider("프로젝트 진척률 (%)", 0, 100, int(task['completion_rate']))
-                new_deadline = st.date_input("마감일", value=pd.to_datetime(task['deadline']))
-            
-            new_description = st.text_area("업무 설명", value=task.get('description') or "")
-            
-            submitted = st.form_submit_button("💾 수정 내용 저장")
-            
-            if submitted:
-                conn = st.session_state.db_conn
-                c = conn.cursor()
-                c.execute('''
-                    UPDATE tasks 
-                    SET project_name = ?, title = ?, assignee = ?, category = ?, 
-                        status = ?, planned_progress = ?, actual_progress = ?, 
-                        completion_rate = ?, deadline = ?, description = ?
-                    WHERE id = ?
-                ''', (new_project_name, new_title, new_assignee, new_category, new_status,
-                      new_planned, new_actual, new_completion, new_deadline.strftime('%Y-%m-%d'),
-                      new_description, project_to_edit))
-                conn.commit()
-                st.success("✅ 수정이 저장되었습니다!")
-                st.rerun()
+            with st.form("edit_form"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    new_project_name = st.text_input("프로젝트명", value=task['project_name'])
+                    new_title = st.text_input("업무 제목", value=task['title'])
+                    new_assignee = st.text_input("담당자", value=task['assignee'])
+                    new_part = st.selectbox("파트", options=PARTS, index=PARTS.index(task['part']) if task['part'] in PARTS else 4)
+                    new_category = st.selectbox("분류", options=["규제동향", "허가관리", "실사관리", "협력업체관리", "자율점검", "교육관리", "직무관리", "품질문화", "기타"])
+                
+                with col2:
+                    new_status = st.selectbox("진행 현황", options=["진행 중", "검토 중", "완료", "일정 지연"])
+                    new_planned = st.slider("계획 일정 (%)", 0, 100, int(task['planned_progress']))
+                    new_actual = st.slider("실제 진행 (%)", 0, 100, int(task['actual_progress']))
+                    new_completion = st.slider("프로젝트 진척률 (%)", 0, 100, int(task['completion_rate']))
+                    new_deadline = st.date_input("마감일", value=pd.to_datetime(task['deadline']))
+                
+                new_description = st.text_area("업무 설명", value=task.get('description') or "")
+                
+                submitted = st.form_submit_button("💾 수정 내용 저장")
+                
+                if submitted:
+                    conn = st.session_state.db_conn
+                    c = conn.cursor()
+                    c.execute('''
+                        UPDATE tasks 
+                        SET project_name = ?, title = ?, assignee = ?, category = ?, 
+                            status = ?, planned_progress = ?, actual_progress = ?, 
+                            completion_rate = ?, deadline = ?, description = ?, part = ?
+                        WHERE id = ?
+                    ''', (new_project_name, new_title, new_assignee, new_category, new_status,
+                          new_planned, new_actual, new_completion, new_deadline.strftime('%Y-%m-%d'),
+                          new_description, new_part, project_to_edit))
+                    conn.commit()
+                    st.success("✅ 수정이 저장되었습니다!")
+                    st.rerun()
 
-    # 아카이브 관리
+    # 아카이브 관리 (기존 유지)
     st.markdown("---")
     st.subheader("🗄️ 아카이브 관리")
     all_df = load_tasks(show_archived=True)
@@ -452,6 +469,7 @@ def show_project_table(df, show_archived=False):
             "보관하거나 보관 해제할 프로젝트 선택",
             options=all_df['id'].tolist(),
             format_func=lambda x: f"{'🗄️ ' if all_df[all_df['id']==x]['archived'].iloc[0]==1 else '✅ '}"
+                                 f"[{all_df[all_df['id']==x]['part'].iloc[0]}] "
                                  f"{all_df[all_df['id']==x]['project_name'].iloc[0]} - "
                                  f"{all_df[all_df['id']==x]['title'].iloc[0]}"
         )
@@ -590,6 +608,7 @@ def show_add_project():
             assignee = st.multiselect("담당자 *", options=team_members)
         
         with col2:
+            part = st.selectbox("파트 *", options=PARTS)   # ← 파트 선택 추가
             category = st.selectbox("분류 *", options=[
                 "규제동향", "허가관리", "실사관리", "협력업체관리",
                 "자율점검", "교육관리", "직무관리", "품질문화", "기타"
@@ -609,7 +628,7 @@ def show_add_project():
         submitted = st.form_submit_button("✅ 프로젝트 추가", use_container_width=True)
         
         if submitted:
-            if not project_name or not title or not assignee:
+            if not project_name or not title or not assignee or not part:
                 st.error("❌ 필수 항목(*)을 모두 입력해주세요!")
             else:
                 conn = st.session_state.db_conn
@@ -619,10 +638,11 @@ def show_add_project():
                 c.execute('''
                 INSERT INTO tasks
                 (project_name, title, description, assignee, category, status,
-                 planned_progress, actual_progress, completion_rate, deadline)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 planned_progress, actual_progress, completion_rate, deadline, part)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (project_name, title, description, assignee_str, category, status,
-                      planned_progress, actual_progress, completion_rate, deadline.strftime('%Y-%m-%d')))
+                      planned_progress, actual_progress, completion_rate, 
+                      deadline.strftime('%Y-%m-%d'), part))
                 
                 conn.commit()
                 
