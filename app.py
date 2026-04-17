@@ -380,27 +380,27 @@ def show_project_table(df, show_archived=False):
     editor_df = filtered_df.copy()
     editor_df['deadline'] = pd.to_datetime(editor_df['deadline']).dt.strftime('%Y-%m-%d')
     
-    # 가장 안전한 형태 (SelectboxColumn 제거)
+    # 가장 안전한 형태 - SelectboxColumn 완전 제거
     edited_df = st.data_editor(
         editor_df[['id', 'project_name', 'title', 'assignee', 'category', 'status',
                    'planned_progress', 'actual_progress', 'completion_rate', 'deadline']],
         column_config={
-            "id": st.column_config.TextColumn("ID", width="small", disabled=True),
-            "project_name": st.column_config.TextColumn("프로젝트명", width="medium"),
-            "title": st.column_config.TextColumn("업무 제목", width="large"),
-            "assignee": st.column_config.TextColumn("담당자", width="medium"),           # 직접 입력 또는 기존 값 수정
-            "category": st.column_config.TextColumn("분류", width="small"),             # 직접 입력
-            "status": st.column_config.TextColumn("진행 현황", width="medium"),         # 직접 입력
+            "id": st.column_config.TextColumn("ID", disabled=True),
+            "project_name": st.column_config.TextColumn("프로젝트명"),
+            "title": st.column_config.TextColumn("업무 제목"),
+            "assignee": st.column_config.TextColumn("담당자"),           # 직접 입력
+            "category": st.column_config.TextColumn("분류"),             # 직접 입력
+            "status": st.column_config.TextColumn("진행 현황"),          # 직접 입력
             "planned_progress": st.column_config.NumberColumn(
-                "계획 일정 (%)", min_value=0, max_value=100, format="%d%%", step=5
+                "계획 일정 (%)", min_value=0, max_value=100, format="%d%%"
             ),
             "actual_progress": st.column_config.NumberColumn(
-                "실제 진행 (%)", min_value=0, max_value=100, format="%d%%", step=5
+                "실제 진행 (%)", min_value=0, max_value=100, format="%d%%"
             ),
             "completion_rate": st.column_config.NumberColumn(
-                "프로젝트 진척률 (%)", min_value=0, max_value=100, format="%d%%", step=5
+                "프로젝트 진척률 (%)", min_value=0, max_value=100, format="%d%%"
             ),
-            "deadline": st.column_config.DateColumn("마감일", format="YYYY-MM-DD"),
+            "deadline": st.column_config.TextColumn("마감일"),           # 문자열로 안전하게
         },
         hide_index=True,
         use_container_width=True,
