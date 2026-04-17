@@ -380,7 +380,7 @@ def show_project_table(df, show_archived=False):
     editor_df = filtered_df.copy()
     editor_df['deadline'] = pd.to_datetime(editor_df['deadline']).dt.strftime('%Y-%m-%d')
     
-    # st.data_editor 설정 (드롭다운 + 캘린더 적용)
+    # 안전한 st.data_editor 설정
     edited_df = st.data_editor(
         editor_df[['id', 'project_name', 'title', 'assignee', 'category', 'status',
                    'planned_progress', 'actual_progress', 'completion_rate', 'deadline']],
@@ -390,19 +390,16 @@ def show_project_table(df, show_archived=False):
             "title": st.column_config.TextColumn("업무 제목", width="large"),
             "assignee": st.column_config.SelectboxColumn(
                 "담당자",
-                options=load_team_members()['name'].tolist(),
-                width="medium"
+                options=load_team_members()['name'].tolist()
             ),
             "category": st.column_config.SelectboxColumn(
                 "분류",
                 options=["규제동향", "허가관리", "실사관리", "협력업체관리", 
-                         "자율점검", "교육관리", "직무관리", "품질문화", "기타"],
-                width="small"
+                         "자율점검", "교육관리", "직무관리", "품질문화", "기타"]
             ),
             "status": st.column_config.SelectboxColumn(
                 "진행 현황",
-                options=["진행 중", "검토 중", "완료", "일정 지연"],
-                width="medium"
+                options=["진행 중", "검토 중", "완료", "일정 지연"]
             ),
             "planned_progress": st.column_config.NumberColumn(
                 "계획 일정 (%)", min_value=0, max_value=100, format="%d%%", step=5
@@ -431,7 +428,6 @@ def show_project_table(df, show_archived=False):
         for idx, row in edited_df.iterrows():
             original = filtered_df[filtered_df['id'] == row['id']].iloc[0]
             
-            # 변경된 항목이 있는지 확인
             if (row['project_name'] != original['project_name'] or
                 row['title'] != original['title'] or
                 row['assignee'] != original['assignee'] or
