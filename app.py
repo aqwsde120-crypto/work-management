@@ -377,33 +377,28 @@ def show_project_table(df, show_archived=False):
     st.markdown(f"**총 {len(filtered_df)}개 프로젝트**")
     
     # ===================== 직접 수정 가능한 테이블 =====================
+    # deadline을 문자열로 안전하게 변환
     editor_df = filtered_df.copy()
     editor_df['deadline'] = pd.to_datetime(editor_df['deadline']).dt.strftime('%Y-%m-%d')
     
-    # st.data_editor로 모든 항목 수정 가능
+    # st.data_editor 설정 (안전하게 단순화)
     edited_df = st.data_editor(
         editor_df[['id', 'project_name', 'title', 'assignee', 'category', 'status',
                    'planned_progress', 'actual_progress', 'completion_rate', 'deadline']],
         column_config={
-            "id": st.column_config.TextColumn("ID", width="small", disabled=True),
-            "project_name": st.column_config.TextColumn("프로젝트명", width="medium"),
-            "title": st.column_config.TextColumn("업무 제목", width="large"),
-            "assignee": st.column_config.TextColumn("담당자", width="medium"),
-            "category": st.column_config.TextColumn("분류", width="small"),
+            "id": st.column_config.TextColumn("ID", disabled=True),
+            "project_name": st.column_config.TextColumn("프로젝트명"),
+            "title": st.column_config.TextColumn("업무 제목"),
+            "assignee": st.column_config.TextColumn("담당자"),
+            "category": st.column_config.TextColumn("분류"),
             "status": st.column_config.SelectboxColumn(
                 "진행 현황",
                 options=["진행 중", "검토 중", "완료", "일정 지연"]
             ),
-            "planned_progress": st.column_config.NumberColumn(
-                "계획 일정 (%)", min_value=0, max_value=100, format="%d%%", step=5
-            ),
-            "actual_progress": st.column_config.NumberColumn(
-                "실제 진행 (%)", min_value=0, max_value=100, format="%d%%", step=5
-            ),
-            "completion_rate": st.column_config.NumberColumn(
-                "프로젝트 진척률 (%)", min_value=0, max_value=100, format="%d%%", step=5
-            ),
-            "deadline": st.column_config.DateColumn("마감일", format="YYYY-MM-DD"),
+            "planned_progress": st.column_config.NumberColumn("계획 일정 (%)", min_value=0, max_value=100, format="%d%%"),
+            "actual_progress": st.column_config.NumberColumn("실제 진행 (%)", min_value=0, max_value=100, format="%d%%"),
+            "completion_rate": st.column_config.NumberColumn("진척률 (%)", min_value=0, max_value=100, format="%d%%"),
+            "deadline": st.column_config.TextColumn("마감일"),
         },
         hide_index=True,
         use_container_width=True,
@@ -421,6 +416,7 @@ def show_project_table(df, show_archived=False):
         for idx, row in edited_df.iterrows():
             original = filtered_df[filtered_df['id'] == row['id']].iloc[0]
             
+            # 변경 여부 확인
             if (row['project_name'] != original['project_name'] or
                 row['title'] != original['title'] or
                 row['assignee'] != original['assignee'] or
@@ -429,7 +425,7 @@ def show_project_table(df, show_archived=False):
                 row['planned_progress'] != original['planned_progress'] or
                 row['actual_progress'] != original['actual_progress'] or
                 row['completion_rate'] != original['completion_rate'] or
-                str(row['deadline']) != str(original['deadline'].date())):
+                row['deadline'] != original['deadline'].strftime('%Y-%m-%d')):
                 
                 c.execute('''
                     UPDATE tasks 
@@ -446,11 +442,11 @@ def show_project_table(df, show_archived=False):
         
         if changed:
             conn.commit()
-            st.success("✅ 모든 변경 사항이 저장되었습니다!")
+            st.success("✅ 모든 변경 사항이 성공적으로 저장되었습니다!")
             st.rerun()
         else:
             st.info("변경된 내용이 없습니다.")
-    
+
     # Excel 다운로드
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("📥 Excel 다운로드"):
