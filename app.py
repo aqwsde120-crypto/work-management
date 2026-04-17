@@ -380,6 +380,7 @@ def show_project_table(df, show_archived=False):
     editor_df = filtered_df.copy()
     editor_df['deadline'] = pd.to_datetime(editor_df['deadline']).dt.strftime('%Y-%m-%d')
     
+    # 가장 안전한 형태 (SelectboxColumn 완전 제거)
     edited_df = st.data_editor(
         editor_df[['id', 'project_name', 'title', 'assignee', 'category', 'status',
                    'planned_progress', 'actual_progress', 'completion_rate', 'deadline']],
@@ -442,25 +443,24 @@ def show_project_table(df, show_archived=False):
         
         if changed:
             conn.commit()
-            st.success("✅ 모든 변경 사항이 저장되었습니다!")
+            st.success("✅ 모든 변경 사항이 성공적으로 저장되었습니다!")
             st.rerun()
         else:
             st.info("변경된 내용이 없습니다.")
 
-    # ==================== 아카이브 관리 ====================
+    # 아카이브 관리 (간단 버전)
     st.markdown("---")
     st.subheader("🗄️ 아카이브 관리")
-    
     if len(filtered_df) > 0:
         selected_ids = st.multiselect(
-            "아카이브(보관)하거나 해제할 프로젝트 선택",
+            "보관하거나 해제할 프로젝트 선택",
             options=filtered_df['id'].tolist(),
             format_func=lambda x: f"{filtered_df[filtered_df['id']==x]['project_name'].iloc[0]} - {filtered_df[filtered_df['id']==x]['title'].iloc[0]}"
         )
         
         col_a, col_b = st.columns(2)
         with col_a:
-            if st.button("🗄️ 선택한 프로젝트 보관하기", type="secondary", use_container_width=True):
+            if st.button("🗄️ 선택한 프로젝트 보관하기", use_container_width=True):
                 if selected_ids:
                     conn = st.session_state.db_conn
                     c = conn.cursor()
@@ -469,7 +469,7 @@ def show_project_table(df, show_archived=False):
                     st.success(f"{len(selected_ids)}개 프로젝트를 보관했습니다.")
                     st.rerun()
         with col_b:
-            if st.button("🔓 선택한 프로젝트 보관 해제하기", type="secondary", use_container_width=True):
+            if st.button("🔓 선택한 프로젝트 보관 해제하기", use_container_width=True):
                 if selected_ids:
                     conn = st.session_state.db_conn
                     c = conn.cursor()
@@ -477,8 +477,6 @@ def show_project_table(df, show_archived=False):
                     conn.commit()
                     st.success(f"{len(selected_ids)}개 프로젝트를 보관 해제했습니다.")
                     st.rerun()
-    else:
-        st.info("프로젝트가 없습니다.")
 
     # Excel 다운로드
     st.markdown("<br>", unsafe_allow_html=True)
