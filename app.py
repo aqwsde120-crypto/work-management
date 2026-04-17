@@ -146,9 +146,9 @@ def init_db():
         emoji TEXT DEFAULT '👤'
     )
     ''')
-        
-        # 기본 팀원 데이터
-        c.execute('SELECT COUNT(*) FROM team_members')
+    
+    # 기본 팀원 데이터만 삽입 (샘플 프로젝트는 삭제)
+    c.execute('SELECT COUNT(*) FROM team_members')
     if c.fetchone()[0] == 0:
         default_members = [
             ('박성숙', '👔'), 
