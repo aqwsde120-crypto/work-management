@@ -134,6 +134,7 @@ def init_db():
         deadline DATE,
         approved INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        archived INTEGER DEFAULT 0
     )
     ''')
     
@@ -167,7 +168,7 @@ def init_db():
         INSERT INTO tasks (project_name, title, description, assignee, category, status, 
                           planned_progress, actual_progress, completion_rate, deadline, approved)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', sample_tasks)
+        ''', [(*task, 0) for task in sample_tasks])
         
         # 기본 팀원 데이터
         default_members = [
@@ -180,9 +181,12 @@ def init_db():
     return conn
 
 # ==================== 데이터 로드 함수 ====================
-def load_tasks():
+def load_tasks(show_archived=False):
     conn = st.session_state.db_conn
-    query = "SELECT * FROM tasks ORDER BY created_at DESC"
+    if show_archived:
+        query = "SELECT * FROM tasks ORDER BY created_at DESC"
+    else:
+        query = "SELECT * FROM tasks WHERE archived = 0 ORDER BY created_at DESC"
     df = pd.read_sql_query(query, conn)
     df['deadline'] = pd.to_datetime(df['deadline'])
     return df
@@ -355,51 +359,112 @@ def show_dashboard(df):
         st.info("마감 임박한 프로젝트가 없습니다.")
 
 # ==================== 프로젝트 테이블 뷰 ====================
-def show_project_table(df):
+def show_project_table(df, show_archived=False):   # ← 이전에 아카이브 추가했다면 show_archived 유지
     st.title("📋 프로젝트 테이블")
     st.markdown("---")
     
-    # 필터 영역
+    # 필터 영역 (기존과 완전히 동일)
     col1, col2, col3, col4 = st.columns(4)
-    
     with col1:
         search_term = st.text_input("🔍 프로젝트명 검색", "")
-    
     with col2:
         team_members = load_team_members()['name'].tolist()
         selected_assignees = st.multiselect("👥 담당자 필터", options=team_members)
-    
     with col3:
         statuses = df['status'].unique().tolist()
         selected_status = st.multiselect("📊 상태 필터", options=statuses)
-    
     with col4:
         categories = df['category'].unique().tolist()
         selected_category = st.multiselect("🗂️ 분류 필터", options=categories)
     
-    # 필터 적용
+    # 필터 적용 (기존 로직 그대로)
     filtered_df = df.copy()
-    
     if search_term:
         filtered_df = filtered_df[
             filtered_df['project_name'].str.contains(search_term, case=False, na=False) |
             filtered_df['title'].str.contains(search_term, case=False, na=False)
         ]
-    
     if selected_assignees:
         filtered_df = filtered_df[
             filtered_df['assignee'].apply(
                 lambda x: any(person in str(x) for person in selected_assignees) if pd.notna(x) else False
             )
         ]
-    
     if selected_status:
         filtered_df = filtered_df[filtered_df['status'].isin(selected_status)]
-    
     if selected_category:
         filtered_df = filtered_df[filtered_df['category'].isin(selected_category)]
     
     st.markdown(f"**총 {len(filtered_df)}개 프로젝트**")
+    
+    # ==================== ★★★ 여기서부터 수정 ★★★ ====================
+    # 수정 가능한 데이터프레임 준비
+    editor_df = filtered_df.copy()
+    editor_df['deadline'] = editor_df['deadline'].dt.strftime('%Y-%m-%d')
+    
+    # st.data_editor로 변경 (진척률 3개 컬럼만 수정 가능)
+    edited_df = st.data_editor(
+        editor_df[['id', 'project_name', 'title', 'assignee', 'category', 'status',
+                   'planned_progress', 'actual_progress', 'completion_rate', 
+                   'deadline', 'approved']],
+        column_config={
+            "id": st.column_config.TextColumn("ID", width="small", disabled=True),
+            "project_name": st.column_config.TextColumn("프로젝트명", width="medium", disabled=True),
+            "title": st.column_config.TextColumn("업무 제목", width="large", disabled=True),
+            "assignee": st.column_config.TextColumn("담당자", width="medium", disabled=True),
+            "category": st.column_config.TextColumn("분류", width="small", disabled=True),
+            "status": st.column_config.TextColumn("진행 현황", width="medium", disabled=True),
+            "planned_progress": st.column_config.NumberColumn(
+                "계획 일정 (%)", min_value=0, max_value=100, format="%d%%", step=1
+            ),
+            "actual_progress": st.column_config.NumberColumn(
+                "실제 진행 (%)", min_value=0, max_value=100, format="%d%%", step=1
+            ),
+            "completion_rate": st.column_config.NumberColumn(
+                "프로젝트 진척률 (%)", min_value=0, max_value=100, format="%d%%", step=1
+            ),
+            "deadline": st.column_config.TextColumn("마감일", width="medium", disabled=True),
+            "approved": st.column_config.CheckboxColumn("승인", disabled=True),
+        },
+        hide_index=True,
+        use_container_width=True,
+        height=600,
+        num_rows="fixed"
+    )
+    
+    # ==================== 변경 사항 저장 버튼 ====================
+    st.markdown("---")
+    col_save, col_info = st.columns([1, 4])
+    with col_save:
+        if st.button("💾 변경 사항 저장", type="primary", use_container_width=True):
+            # 변경된 행만 찾아서 DB 업데이트
+            changed = False
+            conn = st.session_state.db_conn
+            c = conn.cursor()
+            
+            for idx, row in edited_df.iterrows():
+                original = filtered_df[filtered_df['id'] == row['id']].iloc[0]
+                
+                if (row['planned_progress'] != original['planned_progress'] or
+                    row['actual_progress'] != original['actual_progress'] or
+                    row['completion_rate'] != original['completion_rate']):
+                    
+                    c.execute('''
+                        UPDATE tasks 
+                        SET planned_progress = ?, 
+                            actual_progress = ?, 
+                            completion_rate = ?
+                        WHERE id = ?
+                    ''', (row['planned_progress'], row['actual_progress'], 
+                          row['completion_rate'], row['id']))
+                    changed = True
+            
+            if changed:
+                conn.commit()
+                st.success("✅ 진행 상황이 성공적으로 업데이트되었습니다!")
+                st.rerun()
+            else:
+                st.info("변경된 내용이 없습니다.")
     
     # 테이블 표시용 데이터 준비
     display_df = filtered_df.copy()
@@ -656,6 +721,7 @@ def main():
         st.markdown("---")
         
         # 네비게이션
+        show_archived = st.checkbox("🗄️ 아카이브된 프로젝트도 보기", value=False)
         menu = st.radio(
             "메뉴",
             ["📊 대시보드", "📋 프로젝트 테이블", "🗂️ Kanban 보드", 
@@ -669,7 +735,7 @@ def main():
         st.markdown("### ⚙️ 설정")
         
         # 통계 요약
-        df = load_tasks()
+        df = load_tasks(show_archived=show_archived)
         st.markdown("### 📈 빠른 통계")
         st.metric("전체 프로젝트", len(df))
         st.metric("진행 중", len(df[df['status'] == '진행 중']))
@@ -686,7 +752,7 @@ def main():
     if menu == "📊 대시보드":
         show_dashboard(df)
     elif menu == "📋 프로젝트 테이블":
-        show_project_table(df)
+        show_project_table(df, show_archived=show_archived)
     elif menu == "🗂️ Kanban 보드":
         show_kanban_board(df)
     elif menu == "➕ 새 프로젝트/업무 추가":
