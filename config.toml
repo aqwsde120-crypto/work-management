@@ -1,0 +1,17 @@
+# Streamlit Theme Configuration
+# 프로페셔널한 디자인을 위한 테마 설정
+
+[theme]
+primaryColor = "#667eea"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f7fafc"
+textColor = "#1a202c"
+font = "sans serif"
+
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats = false
