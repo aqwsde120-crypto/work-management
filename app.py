@@ -380,11 +380,11 @@ def show_project_table(df, show_archived=False):
     display_df = filtered_df.copy()
     display_df['deadline'] = pd.to_datetime(display_df['deadline']).dt.strftime('%Y-%m-%d')
     
-    # 선택 상태 초기화
+    # 선택 상태 관리
     if "selected_project_id" not in st.session_state:
         st.session_state.selected_project_id = None
     
-    # 데이터프레임 표시 (클릭 가능)
+    # 데이터프레임 표시
     selected_event = st.dataframe(
         display_df[['project_name', 'title', 'assignee', 'category', 'status',
                     'planned_progress', 'actual_progress', 'completion_rate', 'deadline']],
@@ -406,14 +406,14 @@ def show_project_table(df, show_archived=False):
         selection_mode="single-row"
     )
 
-    # 행이 선택되면 모달 창 열기
-    if selected_event.selection.rows:
+    # 모달 창 열기
+    if selected_event.selection and len(selected_event.selection.rows) > 0:
         row_idx = selected_event.selection.rows[0]
         selected_id = int(display_df.iloc[row_idx]['id'])
         st.session_state.selected_project_id = selected_id
 
-        # 상세 모달 창
-        with st.dialog("프로젝트 상세 정보 및 수정"):   # 한글 타이틀 단순화
+        # 상세 모달
+        with st.dialog("프로젝트 상세 및 수정"):
             task = filtered_df[filtered_df['id'] == selected_id].iloc[0]
             is_archived = task.get('archived', 0) == 1
             
@@ -421,20 +421,22 @@ def show_project_table(df, show_archived=False):
             with col1:
                 new_project_name = st.text_input("프로젝트명", value=task['project_name'])
                 new_title = st.text_input("업무 제목", value=task['title'])
-                new_assignee = st.multiselect("담당자", 
-                                            options=load_team_members()['name'].tolist(),
-                                            default=[x.strip() for x in task['assignee'].split(',')] if pd.notna(task['assignee']) else [])
+                new_assignee = st.multiselect(
+                    "담당자", 
+                    options=load_team_members()['name'].tolist(),
+                    default=[x.strip() for x in str(task['assignee']).split(',')] if pd.notna(task['assignee']) else []
+                )
                 new_category = st.selectbox("분류", 
-                                          options=["규제동향", "허가관리", "실사관리", "협력업체관리", 
-                                                   "자율점검", "교육관리", "직무관리", "품질문화", "기타"],
-                                          index=8 if task['category'] not in ["규제동향","허가관리","실사관리","협력업체관리",
-                                                                              "자율점검","교육관리","직무관리","품질문화","기타"] 
-                                          else ["규제동향","허가관리","실사관리","협력업체관리","자율점검","교육관리","직무관리","품질문화","기타"].index(task['category']))
+                    options=["규제동향", "허가관리", "실사관리", "협력업체관리", "자율점검", 
+                             "교육관리", "직무관리", "품질문화", "기타"],
+                    index=8 if task['category'] not in ["규제동향","허가관리","실사관리","협력업체관리",
+                                                        "자율점검","교육관리","직무관리","품질문화","기타"] 
+                    else ["규제동향","허가관리","실사관리","협력업체관리","자율점검","교육관리","직무관리","품질문화","기타"].index(task['category']))
             
             with col2:
                 new_status = st.selectbox("진행 현황", 
-                                        options=["진행 중", "검토 중", "완료", "일정 지연"],
-                                        index=["진행 중", "검토 중", "완료", "일정 지연"].index(task['status']))
+                    options=["진행 중", "검토 중", "완료", "일정 지연"],
+                    index=["진행 중", "검토 중", "완료", "일정 지연"].index(task['status']))
                 new_planned = st.slider("계획 일정 (%)", 0, 100, int(task['planned_progress']))
                 new_actual = st.slider("실제 진행 (%)", 0, 100, int(task['actual_progress']))
                 new_completion = st.slider("프로젝트 진척률 (%)", 0, 100, int(task['completion_rate']))
@@ -452,40 +454,40 @@ def show_project_table(df, show_archived=False):
                     assignee_str = ','.join(new_assignee)
                     c.execute('''
                         UPDATE tasks 
-                        SET project_name = ?, title = ?, assignee = ?, category = ?, 
-                            status = ?, planned_progress = ?, actual_progress = ?, 
-                            completion_rate = ?, deadline = ?, description = ?
-                        WHERE id = ?
+                        SET project_name=?, title=?, assignee=?, category=?, status=?,
+                            planned_progress=?, actual_progress=?, completion_rate=?, 
+                            deadline=?, description=?
+                        WHERE id=?
                     ''', (new_project_name, new_title, assignee_str, new_category, new_status,
-                          new_planned, new_actual, new_completion, new_deadline.strftime('%Y-%m-%d'), 
-                          new_description, selected_id))
+                          new_planned, new_actual, new_completion, 
+                          new_deadline.strftime('%Y-%m-%d'), new_description, selected_id))
                     conn.commit()
-                    st.success("✅ 수정이 저장되었습니다!")
+                    st.success("✅ 저장되었습니다!")
                     st.rerun()
             
             with col_b:
                 if is_archived:
-                    if st.button("🔓 보관 해제하기"):
+                    if st.button("🔓 보관 해제"):
                         conn = st.session_state.db_conn
                         c = conn.cursor()
-                        c.execute("UPDATE tasks SET archived = 0 WHERE id = ?", (selected_id,))
+                        c.execute("UPDATE tasks SET archived=0 WHERE id=?", (selected_id,))
                         conn.commit()
-                        st.success("보관이 해제되었습니다.")
+                        st.success("보관 해제됨")
                         st.rerun()
                 else:
-                    if st.button("🗄️ 프로젝트 보관하기"):
+                    if st.button("🗄️ 프로젝트 보관"):
                         conn = st.session_state.db_conn
                         c = conn.cursor()
-                        c.execute("UPDATE tasks SET archived = 1 WHERE id = ?", (selected_id,))
+                        c.execute("UPDATE tasks SET archived=1 WHERE id=?", (selected_id,))
                         conn.commit()
-                        st.success("프로젝트가 보관되었습니다.")
+                        st.success("보관되었습니다")
                         st.rerun()
             
             with col_c:
                 if st.button("❌ 닫기"):
                     st.session_state.selected_project_id = None
                     st.rerun()
-
+    
     # Excel 다운로드
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("📥 Excel 다운로드"):
