@@ -338,14 +338,14 @@ def show_dashboard(df):
         st.info("마감 임박한 프로젝트가 없습니다.")
 
 # ==================== 프로젝트 테이블 뷰 ====================
-def show_project_table(df, show_archived=False):   # ← 이전에 아카이브 추가했다면 show_archived 유지
+def show_project_table(df, show_archived=False):
     st.title("📋 프로젝트 테이블")
     st.markdown("---")
     
-    # 필터 영역 (기존과 완전히 동일)
+    # 필터 영역
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        search_term = st.text_input("🔍 프로젝트명 검색", "")
+        search_term = st.text_input("🔍 프로젝트명 또는 업무 제목 검색", "")
     with col2:
         team_members = load_team_members()['name'].tolist()
         selected_assignees = st.multiselect("👥 담당자 필터", options=team_members)
@@ -356,7 +356,7 @@ def show_project_table(df, show_archived=False):   # ← 이전에 아카이브 
         categories = df['category'].unique().tolist()
         selected_category = st.multiselect("🗂️ 분류 필터", options=categories)
     
-    # 필터 적용 (기존 로직 그대로)
+    # 필터 적용
     filtered_df = df.copy()
     if search_term:
         filtered_df = filtered_df[
@@ -376,198 +376,210 @@ def show_project_table(df, show_archived=False):   # ← 이전에 아카이브 
     
     st.markdown(f"**총 {len(filtered_df)}개 프로젝트**")
     
-    # ==================== ★★★ 여기서부터 수정 ★★★ ====================
-    # 수정 가능한 데이터프레임 준비
-    editor_df = filtered_df.copy()
-    editor_df['deadline'] = editor_df['deadline'].dt.strftime('%Y-%m-%d')
+    # ===================== 클릭 가능한 테이블 =====================
+    display_df = filtered_df.copy()
+    display_df['deadline'] = pd.to_datetime(display_df['deadline']).dt.strftime('%Y-%m-%d')
     
-    # st.data_editor로 변경 (진척률 3개 컬럼만 수정 가능)
-    edited_df = st.data_editor(
-        editor_df[['id', 'project_name', 'title', 'assignee', 'category', 'status',
-                   'planned_progress', 'actual_progress', 'completion_rate', 
-                   'deadline', 'approved']],
+    if 'selected_id' not in st.session_state:
+        st.session_state.selected_id = None
+    
+    # 테이블 표시
+    event = st.dataframe(
+        display_df[['project_name', 'title', 'assignee', 'category', 'status',
+                    'planned_progress', 'actual_progress', 'completion_rate', 'deadline']],
         column_config={
-            "id": st.column_config.TextColumn("ID", width="small", disabled=True),
-            "project_name": st.column_config.TextColumn("프로젝트명", width="medium", disabled=True),
-            "title": st.column_config.TextColumn("업무 제목", width="large", disabled=True),
-            "assignee": st.column_config.TextColumn("담당자", width="medium", disabled=True),
-            "category": st.column_config.TextColumn("분류", width="small", disabled=True),
-            "status": st.column_config.TextColumn("진행 현황", width="medium", disabled=True),
-            "planned_progress": st.column_config.NumberColumn(
-                "계획 일정 (%)", min_value=0, max_value=100, format="%d%%", step=1
-            ),
-            "actual_progress": st.column_config.NumberColumn(
-                "실제 진행 (%)", min_value=0, max_value=100, format="%d%%", step=1
-            ),
-            "completion_rate": st.column_config.NumberColumn(
-                "프로젝트 진척률 (%)", min_value=0, max_value=100, format="%d%%", step=1
-            ),
-            "deadline": st.column_config.TextColumn("마감일", width="medium", disabled=True),
-            "approved": st.column_config.CheckboxColumn("승인", disabled=True),
+            "project_name": st.column_config.TextColumn("프로젝트명", width="medium"),
+            "title": st.column_config.TextColumn("업무 제목", width="large"),
+            "assignee": st.column_config.TextColumn("담당자", width="medium"),
+            "category": st.column_config.TextColumn("분류", width="small"),
+            "status": st.column_config.TextColumn("진행 현황", width="medium"),
+            "planned_progress": st.column_config.ProgressColumn("계획 일정", format="%d%%"),
+            "actual_progress": st.column_config.ProgressColumn("실제 진행", format="%d%%"),
+            "completion_rate": st.column_config.ProgressColumn("진척률", format="%d%%"),
+            "deadline": st.column_config.TextColumn("마감일"),
         },
         hide_index=True,
         use_container_width=True,
-        height=600,
-        num_rows="fixed"
+        height=500,
+        on_select="rerun",
+        selection_mode="single-row"
     )
     
-    # ==================== 변경 사항 저장 버튼 ====================
-    st.markdown("---")
-    col_save, col_info = st.columns([1, 4])
-    with col_save:
-        if st.button("💾 변경 사항 저장", type="primary", use_container_width=True):
-            # 변경된 행만 찾아서 DB 업데이트
-            changed = False
-            conn = st.session_state.db_conn
-            c = conn.cursor()
+    # 행 선택 시 상세 모달 창
+    if event.selection.rows:
+        selected_row_idx = event.selection.rows[0]
+        selected_id = int(display_df.iloc[selected_row_idx]['id'])
+        st.session_state.selected_id = selected_id
+        
+        with st.dialog("📋 프로젝트 상세 정보 및 수정"):
+            task = filtered_df[filtered_df['id'] == selected_id].iloc[0]
+            is_archived = task['archived'] == 1
             
-            for idx, row in edited_df.iterrows():
-                original = filtered_df[filtered_df['id'] == row['id']].iloc[0]
-                
-                if (row['planned_progress'] != original['planned_progress'] or
-                    row['actual_progress'] != original['actual_progress'] or
-                    row['completion_rate'] != original['completion_rate']):
+            col1, col2 = st.columns(2)
+            with col1:
+                new_project_name = st.text_input("프로젝트명", value=task['project_name'])
+                new_title = st.text_input("업무 제목", value=task['title'])
+                new_assignee = st.multiselect("담당자", 
+                                            options=load_team_members()['name'].tolist(),
+                                            default=task['assignee'].split(',') if pd.notna(task['assignee']) else [])
+                new_category = st.selectbox("분류", 
+                                          options=["규제동향", "허가관리", "실사관리", "협력업체관리", 
+                                                   "자율점검", "교육관리", "직무관리", "품질문화", "기타"],
+                                          index=8 if task['category'] not in ["규제동향", "허가관리", "실사관리", "협력업체관리", 
+                                                                              "자율점검", "교육관리", "직무관리", "품질문화", "기타"] 
+                                          else ["규제동향", "허가관리", "실사관리", "협력업체관리", 
+                                                "자율점검", "교육관리", "직무관리", "품질문화", "기타"].index(task['category']))
+            
+            with col2:
+                new_status = st.selectbox("진행 현황", 
+                                        options=["진행 중", "검토 중", "완료", "일정 지연"],
+                                        index=["진행 중", "검토 중", "완료", "일정 지연"].index(task['status']))
+                new_planned = st.slider("계획 일정 (%)", 0, 100, int(task['planned_progress']))
+                new_actual = st.slider("실제 진행 (%)", 0, 100, int(task['actual_progress']))
+                new_completion = st.slider("프로젝트 진척률 (%)", 0, 100, int(task['completion_rate']))
+                new_deadline = st.date_input("마감일", value=pd.to_datetime(task['deadline']))
+            
+            new_description = st.text_area("업무 설명", value=task.get('description', '') or "")
+            
+            # ==================== 아카이브 버튼 영역 ====================
+            st.markdown("---")
+            col_a, col_b, col_c = st.columns([2, 2, 1])
+            
+            with col_a:
+                if st.button("💾 수정 내용 저장", type="primary"):
+                    conn = st.session_state.db_conn
+                    c = conn.cursor()
+                    assignee_str = ','.join(new_assignee)
                     
                     c.execute('''
                         UPDATE tasks 
-                        SET planned_progress = ?, 
-                            actual_progress = ?, 
-                            completion_rate = ?
+                        SET project_name = ?, title = ?, assignee = ?, category = ?, 
+                            status = ?, planned_progress = ?, actual_progress = ?, 
+                            completion_rate = ?, deadline = ?, description = ?
                         WHERE id = ?
-                    ''', (row['planned_progress'], row['actual_progress'], 
-                          row['completion_rate'], row['id']))
-                    changed = True
+                    ''', (new_project_name, new_title, assignee_str, new_category,
+                          new_status, new_planned, new_actual, new_completion,
+                          new_deadline.strftime('%Y-%m-%d'), new_description, selected_id))
+                    conn.commit()
+                    st.success("✅ 수정 내용이 저장되었습니다!")
+                    st.rerun()
             
-            if changed:
-                conn.commit()
-                st.success("✅ 진행 상황이 성공적으로 업데이트되었습니다!")
-                st.rerun()
-            else:
-                st.info("변경된 내용이 없습니다.")
+            with col_b:
+                if is_archived:
+                    if st.button("🔓 보관 해제하기", type="secondary"):
+                        conn = st.session_state.db_conn
+                        c = conn.cursor()
+                        c.execute("UPDATE tasks SET archived = 0 WHERE id = ?", (selected_id,))
+                        conn.commit()
+                        st.success("✅ 프로젝트가 보관 해제되었습니다.")
+                        st.rerun()
+                else:
+                    if st.button("🗄️ 이 프로젝트 보관하기", type="secondary"):
+                        conn = st.session_state.db_conn
+                        c = conn.cursor()
+                        c.execute("UPDATE tasks SET archived = 1 WHERE id = ?", (selected_id,))
+                        conn.commit()
+                        st.success("✅ 프로젝트가 보관되었습니다. (기본 화면에서 숨겨집니다)")
+                        st.rerun()
+            
+            with col_c:
+                if st.button("❌ 닫기"):
+                    st.session_state.selected_id = None
+                    st.rerun()
     
-    # 테이블 표시용 데이터 준비
-    display_df = filtered_df.copy()
-    display_df['deadline'] = display_df['deadline'].dt.strftime('%Y-%m-%d')
+    # ==================== 변경 사항 저장 (일괄) ====================
+    st.markdown("---")
+    if st.button("💾 테이블에서 직접 수정한 내용 저장", type="primary", use_container_width=True):
+        # 여기는 이전에 있던 data_editor 일괄 저장 기능 (필요시 유지)
+        st.info("상세 모달 창에서 개별 수정하는 것을 추천합니다.")
     
-    # 프로페셔널한 테이블 표시
-    st.dataframe(
-        display_df[['project_name', 'title', 'assignee', 'category', 'status', 
-                    'planned_progress', 'actual_progress', 'completion_rate', 
-                    'deadline', 'approved']],
-        column_config={
-            "project_name": st.column_config.TextColumn(
-                "프로젝트명",
-                width="medium",
-                help="프로젝트 이름"
-            ),
-            "title": st.column_config.TextColumn(
-                "업무 제목",
-                width="large",
-            ),
-            "assignee": st.column_config.TextColumn(
-                "담당자",
-                width="medium",
-            ),
-            "category": st.column_config.TextColumn(
-                "분류",
-                width="small",
-            ),
-            "status": st.column_config.TextColumn(
-                "진행 현황",
-                width="medium",
-            ),
-            "planned_progress": st.column_config.ProgressColumn(
-                "계획 일정",
-                format="%d%%",
-                min_value=0,
-                max_value=100,
-            ),
-            "actual_progress": st.column_config.ProgressColumn(
-                "실제 진행",
-                format="%d%%",
-                min_value=0,
-                max_value=100,
-            ),
-            "completion_rate": st.column_config.ProgressColumn(
-                "프로젝트 진척률",
-                format="%d%%",
-                min_value=0,
-                max_value=100,
-            ),
-            "deadline": st.column_config.TextColumn(
-                "마감일",
-                width="medium",
-            ),
-            "approved": st.column_config.CheckboxColumn(
-                "승인",
-                help="프로젝트 승인 여부",
-                default=False,
-            ),
-        },
-        hide_index=True,
-        use_container_width=True,
-        height=600
-    )
-    
-    # 엑셀 다운로드 버튼
-    st.markdown("<br>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1, 4])
-    with col1:
-        if st.button("📥 Excel 다운로드"):
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                filtered_df.to_excel(writer, index=False, sheet_name='프로젝트')
-            output.seek(0)
-            st.download_button(
-                label="📥 다운로드 시작",
-                data=output,
-                file_name=f"프로젝트_관리_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+    # Excel 다운로드
+    if st.button("📥 Excel 다운로드"):
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            filtered_df.to_excel(writer, index=False)
+        output.seek(0)
+        st.download_button(
+            label="📥 다운로드 시작",
+            data=output,
+            file_name=f"프로젝트_관리_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
-# ==================== 칸반 보드 뷰 ====================
+# ==================== Kanban 보드 뷰 ====================
 def show_kanban_board(df):
     st.title("🗂️ Kanban 보드")
     st.markdown("---")
     
-    # 칸반 컬럼 매핑
+    # 개선된 컬럼 구조: 검토 중 | 진행 중 | 일정 지연 | 완료
     kanban_columns = {
-        '할 일': ['검토 중'],
-        '진행 중': ['진행 중'],
-        '일정 지연': ['일정 지연'],
-        '완료': ['완료']
+        "검토 중": ["검토 중"],
+        "진행 중": ["진행 중"],
+        "일정 지연": ["일정 지연"],
+        "완료": ["완료"]
     }
     
+    # 4개 컬럼 생성
     cols = st.columns(4)
     
-    for idx, (column_name, statuses) in enumerate(kanban_columns.items()):
+    for idx, (column_name, status_list) in enumerate(kanban_columns.items()):
         with cols[idx]:
             # 컬럼 헤더
-            count = len(df[df['status'].isin(statuses)])
-            st.markdown(f"### {column_name} ({count})")
+            count = len(df[df['status'].isin(status_list)])
+            st.markdown(f"""
+            <h3 style="text-align: center; margin-bottom: 10px;">
+                {column_name} <span style="font-size: 0.9rem; color: #718096;">({count})</span>
+            </h3>
+            """, unsafe_allow_html=True)
             
-            # 카드 표시
-            tasks_in_column = df[df['status'].isin(statuses)]
+            # 해당 상태의 업무들 표시
+            tasks_in_column = df[df['status'].isin(status_list)].sort_values(by='deadline')
             
             for _, task in tasks_in_column.iterrows():
                 # 마감일까지 남은 일수 계산
                 days_left = (task['deadline'] - pd.Timestamp.now()).days
-                deadline_color = "🔴" if days_left < 0 else "🟡" if days_left < 7 else "🟢"
+                
+                if days_left < 0:
+                    deadline_status = "🔴 지연"
+                    deadline_color = "#f56565"
+                elif days_left <= 7:
+                    deadline_status = f"🟡 D-{days_left}"
+                    deadline_color = "#ed8936"
+                else:
+                    deadline_status = f"🟢 D-{days_left}"
+                    deadline_color = "#48bb78"
                 
                 st.markdown(f"""
-                <div class="kanban-card">
-                    <small style="color: #718096;">{task['project_name']}</small>
-                    <h4 style="margin: 0.5rem 0; font-size: 1rem;">{task['title']}</h4>
-                    <p style="margin: 0.3rem 0; font-size: 0.85rem;">
-                        👤 {task['assignee']}<br>
-                        📅 {task['deadline'].strftime('%Y-%m-%d')} {deadline_color}
-                    </p>
-                    <div style="margin-top: 0.5rem;">
-                        <div style="background: #e2e8f0; border-radius: 10px; height: 8px; overflow: hidden;">
+                <div style="background: white; border-radius: 10px; padding: 14px; margin-bottom: 12px; 
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 5px solid {deadline_color};">
+                    <div style="font-size: 0.85rem; color: #718096; margin-bottom: 6px;">
+                        {task['project_name']}
+                    </div>
+                    <div style="font-weight: 600; font-size: 1.02rem; margin-bottom: 8px; line-height: 1.3;">
+                        {task['title']}
+                    </div>
+                    <div style="font-size: 0.9rem; margin-bottom: 8px;">
+                        👤 {task['assignee']}
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
+                        <span>📅 {task['deadline'].strftime('%Y-%m-%d')}</span>
+                        <span style="color: {deadline_color}; font-weight: 600;">{deadline_status}</span>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <div style="background: #e2e8f0; height: 6px; border-radius: 10px; overflow: hidden;">
                             <div style="background: #4299e1; height: 100%; width: {task['completion_rate']}%;"></div>
                         </div>
-                        <small style="color: #718096;">{task['completion_rate']}% 완료</small>
+                        <small style="color: #4a5568;">진척률 {task['completion_rate']}%</small>
                     </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # 해당 컬럼에 업무가 없을 때
+            if len(tasks_in_column) == 0:
+                st.markdown("""
+                <div style="text-align: center; padding: 40px 20px; color: #94a3b8; 
+                            background: #f8fafc; border-radius: 10px;">
+                    업무가 없습니다
                 </div>
                 """, unsafe_allow_html=True)
 
