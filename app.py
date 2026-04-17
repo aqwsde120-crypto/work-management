@@ -133,7 +133,7 @@ def init_db():
         completion_rate INTEGER,
         deadline DATE,
         approved INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         archived INTEGER DEFAULT 0
     )
     ''')
