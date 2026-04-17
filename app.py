@@ -380,7 +380,6 @@ def show_project_table(df, show_archived=False):
     display_df = filtered_df.copy()
     display_df['deadline'] = pd.to_datetime(display_df['deadline']).dt.strftime('%Y-%m-%d')
     
-    # 선택 상태 관리
     if "selected_project_id" not in st.session_state:
         st.session_state.selected_project_id = None
     
@@ -406,16 +405,18 @@ def show_project_table(df, show_archived=False):
         selection_mode="single-row"
     )
 
-    # 모달 창 열기
+    # 행 선택 시 모달 창 열기
     if selected_event.selection and len(selected_event.selection.rows) > 0:
         row_idx = selected_event.selection.rows[0]
         selected_id = int(display_df.iloc[row_idx]['id'])
         st.session_state.selected_project_id = selected_id
 
-        # 상세 모달
-        with st.dialog("프로젝트 상세 및 수정"):
+        # 상세 모달 창 (타이틀을 영어로 단순화하여 에러 방지)
+        with st.dialog("Project Details & Edit"):
             task = filtered_df[filtered_df['id'] == selected_id].iloc[0]
             is_archived = task.get('archived', 0) == 1
+            
+            st.subheader("📋 프로젝트 상세 정보 및 수정")
             
             col1, col2 = st.columns(2)
             with col1:
@@ -424,7 +425,7 @@ def show_project_table(df, show_archived=False):
                 new_assignee = st.multiselect(
                     "담당자", 
                     options=load_team_members()['name'].tolist(),
-                    default=[x.strip() for x in str(task['assignee']).split(',')] if pd.notna(task['assignee']) else []
+                    default=[x.strip() for x in str(task.get('assignee', '')).split(',')] if task.get('assignee') else []
                 )
                 new_category = st.selectbox("분류", 
                     options=["규제동향", "허가관리", "실사관리", "협력업체관리", "자율점검", 
@@ -462,32 +463,32 @@ def show_project_table(df, show_archived=False):
                           new_planned, new_actual, new_completion, 
                           new_deadline.strftime('%Y-%m-%d'), new_description, selected_id))
                     conn.commit()
-                    st.success("✅ 저장되었습니다!")
+                    st.success("✅ 수정이 저장되었습니다!")
                     st.rerun()
             
             with col_b:
                 if is_archived:
-                    if st.button("🔓 보관 해제"):
+                    if st.button("🔓 보관 해제하기"):
                         conn = st.session_state.db_conn
                         c = conn.cursor()
-                        c.execute("UPDATE tasks SET archived=0 WHERE id=?", (selected_id,))
+                        c.execute("UPDATE tasks SET archived = 0 WHERE id = ?", (selected_id,))
                         conn.commit()
-                        st.success("보관 해제됨")
+                        st.success("보관이 해제되었습니다.")
                         st.rerun()
                 else:
-                    if st.button("🗄️ 프로젝트 보관"):
+                    if st.button("🗄️ 프로젝트 보관하기"):
                         conn = st.session_state.db_conn
                         c = conn.cursor()
-                        c.execute("UPDATE tasks SET archived=1 WHERE id=?", (selected_id,))
+                        c.execute("UPDATE tasks SET archived = 1 WHERE id = ?", (selected_id,))
                         conn.commit()
-                        st.success("보관되었습니다")
+                        st.success("프로젝트가 보관되었습니다.")
                         st.rerun()
             
             with col_c:
                 if st.button("❌ 닫기"):
                     st.session_state.selected_project_id = None
                     st.rerun()
-    
+
     # Excel 다운로드
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("📥 Excel 다운로드"):
