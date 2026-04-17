@@ -342,7 +342,7 @@ def show_project_table(df, show_archived=False):
     st.title("📋 프로젝트 테이블")
     st.markdown("---")
     
-    # 필터 영역 (기존 그대로 유지)
+    # 필터 영역
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         search_term = st.text_input("🔍 프로젝트명 또는 업무 제목 검색", "")
@@ -375,57 +375,112 @@ def show_project_table(df, show_archived=False):
         filtered_df = filtered_df[filtered_df['category'].isin(selected_category)]
     
     st.markdown(f"**총 {len(filtered_df)}개 프로젝트**")
+    
+    # ===================== 안전한 테이블 표시 =====================
+    display_df = filtered_df.copy()
+    display_df['deadline'] = pd.to_datetime(display_df['deadline']).dt.strftime('%Y-%m-%d')
+    display_df = display_df[['id', 'project_name', 'title', 'assignee', 'category', 'status',
+                             'planned_progress', 'actual_progress', 'completion_rate', 'deadline']]
+    
+    st.dataframe(
+        display_df,
+        hide_index=True,
+        use_container_width=True,
+        height=600
+    )
+    
+    # ==================== 개별 수정 (간단 모달) ====================
+    st.markdown("---")
+    st.subheader("✏️ 프로젝트 수정")
+    project_to_edit = st.selectbox(
+        "수정할 프로젝트 선택",
+        options=filtered_df['id'].tolist(),
+        format_func=lambda x: f"{filtered_df[filtered_df['id']==x]['project_name'].iloc[0]} - {filtered_df[filtered_df['id']==x]['title'].iloc[0]}"
+    )
+    
+    if project_to_edit:
+        task = filtered_df[filtered_df['id'] == project_to_edit].iloc[0]
+        
+        with st.form("edit_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                new_project_name = st.text_input("프로젝트명", value=task['project_name'])
+                new_title = st.text_input("업무 제목", value=task['title'])
+                new_assignee = st.text_input("담당자", value=task['assignee'])
+                new_category = st.selectbox("분류", 
+                    options=["규제동향", "허가관리", "실사관리", "협력업체관리", "자율점검", 
+                             "교육관리", "직무관리", "품질문화", "기타"], 
+                    index=8 if task['category'] not in ["규제동향","허가관리","실사관리","협력업체관리",
+                                                        "자율점검","교육관리","직무관리","품질문화","기타"] 
+                    else ["규제동향","허가관리","실사관리","협력업체관리","자율점검","교육관리","직무관리","품질문화","기타"].index(task['category']))
+            
+            with col2:
+                new_status = st.selectbox("진행 현황", 
+                    options=["진행 중", "검토 중", "완료", "일정 지연"],
+                    index=["진행 중", "검토 중", "완료", "일정 지연"].index(task['status']))
+                new_planned = st.slider("계획 일정 (%)", 0, 100, int(task['planned_progress']))
+                new_actual = st.slider("실제 진행 (%)", 0, 100, int(task['actual_progress']))
+                new_completion = st.slider("프로젝트 진척률 (%)", 0, 100, int(task['completion_rate']))
+                new_deadline = st.date_input("마감일", value=pd.to_datetime(task['deadline']))
+            
+            new_description = st.text_area("업무 설명", value=task.get('description') or "")
+            
+            submitted = st.form_submit_button("💾 수정 내용 저장")
+            
+            if submitted:
+                conn = st.session_state.db_conn
+                c = conn.cursor()
+                c.execute('''
+                    UPDATE tasks 
+                    SET project_name = ?, title = ?, assignee = ?, category = ?, 
+                        status = ?, planned_progress = ?, actual_progress = ?, 
+                        completion_rate = ?, deadline = ?, description = ?
+                    WHERE id = ?
+                ''', (new_project_name, new_title, new_assignee, new_category, new_status,
+                      new_planned, new_actual, new_completion, new_deadline.strftime('%Y-%m-%d'),
+                      new_description, project_to_edit))
+                conn.commit()
+                st.success("✅ 수정이 저장되었습니다!")
+                st.rerun()
 
-    # ... (중간의 data_editor 부분은 기존 코드 그대로 유지) ...
-
-    # ==================== 아카이브 관리 (개선 버전) ====================
+    # 아카이브 관리
     st.markdown("---")
     st.subheader("🗄️ 아카이브 관리")
-    
-    # 모든 프로젝트를 보여주기 위해 show_archived와 관계없이 전체 데이터 로드
-    all_df = load_tasks(show_archived=True)   # 아카이브된 것도 포함해서 불러옴
-    
+    all_df = load_tasks(show_archived=True)
     if len(all_df) > 0:
         selected_ids = st.multiselect(
             "보관하거나 보관 해제할 프로젝트 선택",
             options=all_df['id'].tolist(),
-            format_func=lambda x: f"{'🗄️ ' if all_df[all_df['id']==x]['archived'].iloc[0] == 1 else ''}" 
+            format_func=lambda x: f"{'🗄️ ' if all_df[all_df['id']==x]['archived'].iloc[0]==1 else '✅ '}"
                                  f"{all_df[all_df['id']==x]['project_name'].iloc[0]} - "
-                                 f"{all_df[all_df['id']==x]['title'].iloc[0]} "
-                                 f"({'보관됨' if all_df[all_df['id']==x]['archived'].iloc[0] == 1 else '활성'})"
+                                 f"{all_df[all_df['id']==x]['title'].iloc[0]}"
         )
         
         col_a, col_b = st.columns(2)
         with col_a:
             if st.button("🗄️ 선택한 프로젝트 보관하기", use_container_width=True):
                 if selected_ids:
-                    conn = st.session_state.db_conn
-                    c = conn.cursor()
-                    active_ids = [i for i in selected_ids if all_df[all_df['id']==i]['archived'].iloc[0] == 0]
-                    if active_ids:
-                        c.executemany("UPDATE tasks SET archived = 1 WHERE id = ?", [(i,) for i in active_ids])
+                    to_archive = [i for i in selected_ids if all_df[all_df['id']==i]['archived'].iloc[0] == 0]
+                    if to_archive:
+                        conn = st.session_state.db_conn
+                        c = conn.cursor()
+                        c.executemany("UPDATE tasks SET archived = 1 WHERE id = ?", [(i,) for i in to_archive])
                         conn.commit()
-                        st.success(f"{len(active_ids)}개 프로젝트를 보관했습니다.")
+                        st.success(f"{len(to_archive)}개 프로젝트를 보관했습니다.")
                         st.rerun()
-                    else:
-                        st.info("이미 보관된 프로젝트만 선택되었습니다.")
         with col_b:
             if st.button("🔓 선택한 프로젝트 보관 해제하기", use_container_width=True):
                 if selected_ids:
-                    conn = st.session_state.db_conn
-                    c = conn.cursor()
-                    archived_ids = [i for i in selected_ids if all_df[all_df['id']==i]['archived'].iloc[0] == 1]
-                    if archived_ids:
-                        c.executemany("UPDATE tasks SET archived = 0 WHERE id = ?", [(i,) for i in archived_ids])
+                    to_unarchive = [i for i in selected_ids if all_df[all_df['id']==i]['archived'].iloc[0] == 1]
+                    if to_unarchive:
+                        conn = st.session_state.db_conn
+                        c = conn.cursor()
+                        c.executemany("UPDATE tasks SET archived = 0 WHERE id = ?", [(i,) for i in to_unarchive])
                         conn.commit()
-                        st.success(f"{len(archived_ids)}개 프로젝트를 보관 해제했습니다.")
+                        st.success(f"{len(to_unarchive)}개 프로젝트를 보관 해제했습니다.")
                         st.rerun()
-                    else:
-                        st.info("이미 활성화된 프로젝트만 선택되었습니다.")
-    else:
-        st.info("프로젝트가 없습니다.")
 
-    # Excel 다운로드 (기존 유지)
+    # Excel 다운로드
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("📥 Excel 다운로드"):
         output = io.BytesIO()
