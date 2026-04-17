@@ -467,7 +467,7 @@ def show_kanban_board(df):
     st.title("🗂️ Kanban 보드")
     st.markdown("---")
     
-    # 개선된 컬럼 구조: 검토 중 | 진행 중 | 일정 지연 | 완료
+    # 컬럼 구조: 검토 중 | 진행 중 | 일정 지연 | 완료
     kanban_columns = {
         "검토 중": ["검토 중"],
         "진행 중": ["진행 중"],
@@ -475,12 +475,10 @@ def show_kanban_board(df):
         "완료": ["완료"]
     }
     
-    # 4개 컬럼 생성
     cols = st.columns(4)
     
     for idx, (column_name, status_list) in enumerate(kanban_columns.items()):
         with cols[idx]:
-            # 컬럼 헤더
             count = len(df[df['status'].isin(status_list)])
             st.markdown(f"""
             <h3 style="text-align: center; margin-bottom: 10px;">
@@ -488,14 +486,19 @@ def show_kanban_board(df):
             </h3>
             """, unsafe_allow_html=True)
             
-            # 해당 상태의 업무들 표시
             tasks_in_column = df[df['status'].isin(status_list)].sort_values(by='deadline')
             
             for _, task in tasks_in_column.iterrows():
+                is_completed = task['status'] == "완료"
+                
                 # 마감일까지 남은 일수 계산
                 days_left = (task['deadline'] - pd.Timestamp.now()).days
                 
-                if days_left < 0:
+                # 완료된 프로젝트는 지연 표시 안 함
+                if is_completed:
+                    deadline_status = "✅ 완료"
+                    deadline_color = "#48bb78"
+                elif days_left < 0:
                     deadline_status = "🔴 지연"
                     deadline_color = "#f56565"
                 elif days_left <= 7:
@@ -530,7 +533,6 @@ def show_kanban_board(df):
                 </div>
                 """, unsafe_allow_html=True)
             
-            # 해당 컬럼에 업무가 없을 때
             if len(tasks_in_column) == 0:
                 st.markdown("""
                 <div style="text-align: center; padding: 40px 20px; color: #94a3b8; 
