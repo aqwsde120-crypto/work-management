@@ -147,16 +147,12 @@ def init_db():
     )
     ''')
     
-    # 기본 팀원 데이터만 삽입 (샘플 프로젝트는 삭제)
+    # 기본 팀원 등록
     c.execute('SELECT COUNT(*) FROM team_members')
     if c.fetchone()[0] == 0:
         default_members = [
-            ('박성숙', '👔'), 
-            ('송수용', '💼'), 
-            ('이민경', '👩‍💼'), 
-            ('나의연', '👨‍💻'), 
-            ('김지수', '📊'), 
-            ('정은지', '🔧')
+            ('박성숙', '👔'), ('송수용', '💼'), ('이민경', '👩‍💼'),
+            ('나의연', '👨‍💻'), ('김지수', '📊'), ('정은지', '🔥')
         ]
         c.executemany('INSERT OR IGNORE INTO team_members (name, emoji) VALUES (?, ?)', default_members)
     
@@ -584,16 +580,19 @@ def show_add_project():
         col1, col2 = st.columns(2)
         
         with col1:
-            project_name = st.text_input("프로젝트명 *", placeholder="예: 2024 마케팅 캠페인")
-            title = st.text_input("업무 제목 *", placeholder="예: Q1 디지털 광고 전략 수립")
+            project_name = st.text_input("프로젝트명 *", placeholder="예: 규제동향 모니터링")
+            title = st.text_input("업무 제목 *", placeholder="예: 2026년 상반기 규제 변경 분석")
             description = st.text_area("업무 설명", placeholder="상세 업무 내용을 입력하세요")
             
             team_members = load_team_members()['name'].tolist()
             assignee = st.multiselect("담당자 *", options=team_members)
         
         with col2:
-            category = st.selectbox("분류 *", options=["MD #1", "MD #2", "GTM", "기타"])
-            status = st.selectbox("진행 현황 *", options=["진행 중", "완료", "일정 지연", "검토 중"])
+            category = st.selectbox("분류 *", options=[
+                "규제동향", "허가관리", "실사관리", "협력업체관리", 
+                "자율점검", "교육관리", "직무관리", "품질문화", "기타"
+            ])
+            status = st.selectbox("진행 현황 *", options=["진행 중", "검토 중", "완료", "일정 지연"])
             
             col2_1, col2_2, col2_3 = st.columns(3)
             with col2_1:
@@ -601,10 +600,9 @@ def show_add_project():
             with col2_2:
                 actual_progress = st.slider("실제 진행 (%)", 0, 100, 0)
             with col2_3:
-                completion_rate = st.slider("진척률 (%)", 0, 100, 0)
+                completion_rate = st.slider("프로젝트 진척률 (%)", 0, 100, 0)
             
             deadline = st.date_input("마감일 *", value=datetime.now() + timedelta(days=30))
-            approved = st.checkbox("승인됨")
         
         submitted = st.form_submit_button("✅ 프로젝트 추가", use_container_width=True)
         
@@ -614,19 +612,18 @@ def show_add_project():
             else:
                 conn = st.session_state.db_conn
                 c = conn.cursor()
-                
                 assignee_str = ','.join(assignee)
                 
                 c.execute('''
-                INSERT INTO tasks (project_name, title, description, assignee, category, status,
-                                 planned_progress, actual_progress, completion_rate, deadline, approved)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO tasks 
+                (project_name, title, description, assignee, category, status,
+                 planned_progress, actual_progress, completion_rate, deadline)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (project_name, title, description, assignee_str, category, status,
-                      planned_progress, actual_progress, completion_rate, deadline.strftime('%Y-%m-%d'), 
-                      1 if approved else 0))
+                      planned_progress, actual_progress, completion_rate, deadline.strftime('%Y-%m-%d')))
                 
                 conn.commit()
-                st.success(f"✅ '{title}' 프로젝트가 추가되었습니다!")
+                st.success(f"✅ '{title}' 업무가 추가되었습니다!")
                 st.balloons()
                 st.rerun()
 
