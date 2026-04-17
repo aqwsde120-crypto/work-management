@@ -376,31 +376,25 @@ def show_project_table(df, show_archived=False):
     
     st.markdown(f"**총 {len(filtered_df)}개 프로젝트**")
     
-    # ===================== 직접 수정 가능한 테이블 =====================
+    # ===================== 가장 안전한 수정 테이블 =====================
     editor_df = filtered_df.copy()
     editor_df['deadline'] = pd.to_datetime(editor_df['deadline']).dt.strftime('%Y-%m-%d')
     
-    # 가장 안전한 형태 (SelectboxColumn 완전 제거)
+    # 단순하고 안전한 형태
     edited_df = st.data_editor(
         editor_df[['id', 'project_name', 'title', 'assignee', 'category', 'status',
                    'planned_progress', 'actual_progress', 'completion_rate', 'deadline']],
         column_config={
-            "id": st.column_config.TextColumn("ID", width="small", disabled=True),
-            "project_name": st.column_config.TextColumn("프로젝트명", width="medium"),
-            "title": st.column_config.TextColumn("업무 제목", width="large"),
-            "assignee": st.column_config.TextColumn("담당자", width="medium"),
-            "category": st.column_config.TextColumn("분류", width="small"),
-            "status": st.column_config.TextColumn("진행 현황", width="medium"),
-            "planned_progress": st.column_config.NumberColumn(
-                "계획 일정 (%)", min_value=0, max_value=100, format="%d%%", step=5
-            ),
-            "actual_progress": st.column_config.NumberColumn(
-                "실제 진행 (%)", min_value=0, max_value=100, format="%d%%", step=5
-            ),
-            "completion_rate": st.column_config.NumberColumn(
-                "프로젝트 진척률 (%)", min_value=0, max_value=100, format="%d%%", step=5
-            ),
-            "deadline": st.column_config.DateColumn("마감일", format="YYYY-MM-DD"),
+            "id": st.column_config.TextColumn("ID", disabled=True),
+            "project_name": st.column_config.TextColumn("프로젝트명"),
+            "title": st.column_config.TextColumn("업무 제목"),
+            "assignee": st.column_config.TextColumn("담당자"),
+            "category": st.column_config.TextColumn("분류"),
+            "status": st.column_config.TextColumn("진행 현황"),
+            "planned_progress": st.column_config.NumberColumn("계획 일정 (%)", min_value=0, max_value=100, format="%d%%"),
+            "actual_progress": st.column_config.NumberColumn("실제 진행 (%)", min_value=0, max_value=100, format="%d%%"),
+            "completion_rate": st.column_config.NumberColumn("진척률 (%)", min_value=0, max_value=100, format="%d%%"),
+            "deadline": st.column_config.TextColumn("마감일"),
         },
         hide_index=True,
         use_container_width=True,
@@ -443,12 +437,12 @@ def show_project_table(df, show_archived=False):
         
         if changed:
             conn.commit()
-            st.success("✅ 모든 변경 사항이 성공적으로 저장되었습니다!")
+            st.success("✅ 모든 변경 사항이 저장되었습니다!")
             st.rerun()
         else:
             st.info("변경된 내용이 없습니다.")
 
-    # 아카이브 관리 (간단 버전)
+    # 아카이브 관리
     st.markdown("---")
     st.subheader("🗄️ 아카이브 관리")
     if len(filtered_df) > 0:
