@@ -626,12 +626,14 @@ def show_add_project():
                 
                 conn.commit()
                 
-                # 개선된 성공 메시지
+                # 개선된 성공 메시지 표시 (rerun 전에 충분히 보여줌)
                 st.success(f"🎉 '{title}' 업무가 성공적으로 추가되었습니다!")
-                st.balloons()           # 풍선 애니메이션
-                st.toast("프로젝트가 추가되었습니다!", icon="✅")   # 추가 토스트 알림
+                st.balloons()
+                st.toast(f"프로젝트 '{title}'가 추가되었습니다!", icon="✅")
                 
-                # 잠시 후 자동 새로고침
+                # 성공 메시지를 1.5초 정도 보여준 후 새로고침
+                import time
+                time.sleep(1.5)
                 st.rerun()
 
 # ==================== 팀원 관리 ====================
