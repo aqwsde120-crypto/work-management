@@ -383,7 +383,7 @@ def show_project_table(df, show_archived=False):
     if "selected_project_id" not in st.session_state:
         st.session_state.selected_project_id = None
     
-    # 데이터프레임 표시
+    # 데이터프레임 표시 (클릭 가능)
     selected_event = st.dataframe(
         display_df[['project_name', 'title', 'assignee', 'category', 'status',
                     'planned_progress', 'actual_progress', 'completion_rate', 'deadline']],
@@ -405,18 +405,18 @@ def show_project_table(df, show_archived=False):
         selection_mode="single-row"
     )
 
-    # 행 선택 시 모달 창 열기
+    # 모달 창 열기
     if selected_event.selection and len(selected_event.selection.rows) > 0:
         row_idx = selected_event.selection.rows[0]
         selected_id = int(display_df.iloc[row_idx]['id'])
         st.session_state.selected_project_id = selected_id
 
-        # 상세 모달 창 (타이틀을 영어로 단순화하여 에러 방지)
-        with st.dialog("Project Details & Edit"):
+        # 상세 모달 창 (에러 방지를 위해 최대한 단순화)
+        with st.dialog("Project Detail"):
             task = filtered_df[filtered_df['id'] == selected_id].iloc[0]
             is_archived = task.get('archived', 0) == 1
             
-            st.subheader("📋 프로젝트 상세 정보 및 수정")
+            st.markdown("### 📋 프로젝트 상세 정보 및 수정")
             
             col1, col2 = st.columns(2)
             with col1:
@@ -429,15 +429,11 @@ def show_project_table(df, show_archived=False):
                 )
                 new_category = st.selectbox("분류", 
                     options=["규제동향", "허가관리", "실사관리", "협력업체관리", "자율점검", 
-                             "교육관리", "직무관리", "품질문화", "기타"],
-                    index=8 if task['category'] not in ["규제동향","허가관리","실사관리","협력업체관리",
-                                                        "자율점검","교육관리","직무관리","품질문화","기타"] 
-                    else ["규제동향","허가관리","실사관리","협력업체관리","자율점검","교육관리","직무관리","품질문화","기타"].index(task['category']))
+                             "교육관리", "직무관리", "품질문화", "기타"])
             
             with col2:
                 new_status = st.selectbox("진행 현황", 
-                    options=["진행 중", "검토 중", "완료", "일정 지연"],
-                    index=["진행 중", "검토 중", "완료", "일정 지연"].index(task['status']))
+                    options=["진행 중", "검토 중", "완료", "일정 지연"])
                 new_planned = st.slider("계획 일정 (%)", 0, 100, int(task['planned_progress']))
                 new_actual = st.slider("실제 진행 (%)", 0, 100, int(task['actual_progress']))
                 new_completion = st.slider("프로젝트 진척률 (%)", 0, 100, int(task['completion_rate']))
