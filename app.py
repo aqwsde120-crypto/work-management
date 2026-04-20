@@ -5,7 +5,7 @@
 import streamlit as st
 from datetime import datetime
 
-# 페이지 설정 - 앱 이름 변경
+# 페이지 설정
 st.set_page_config(
     page_title="종근당 바이오QA팀 프로젝트 관리",
     page_icon="📊",
@@ -26,6 +26,7 @@ from views.team_management import show_team_management
 
 # ==================== 비밀번호 체크 ====================
 def check_password():
+    """비밀번호 보호 유지"""
     def password_entered():
         if st.session_state["password"] == st.secrets.get("app_password", "team123"):
             st.session_state["password_correct"] = True
@@ -52,9 +53,11 @@ def check_password():
 
 # ==================== 메인 앱 ====================
 def main():
+    # 비밀번호 체크 (유지)
     if not check_password():
         return
 
+    # 데이터베이스 초기화
     if 'db_conn' not in st.session_state:
         st.session_state.db_conn = init_db()
     
@@ -64,11 +67,12 @@ def main():
     if 'load_tasks_func' not in st.session_state:
         st.session_state.load_tasks_func = load_tasks
 
+    # 커스텀 CSS 로드
     load_custom_css()
 
-    # 사이드바
+    # ==================== 사이드바 ====================
     with st.sidebar:
-        st.title("🎯 종근당 바이오QA팀 프로젝트 관리")   # ← 여기서도 이름 변경
+        st.title("🎯 종근당 바이오QA팀 프로젝트 관리")
         st.markdown("---")
         
         show_archived = st.checkbox("🗄️ 아카이브된 프로젝트도 보기", value=False)
@@ -86,6 +90,16 @@ def main():
         st.metric("전체 프로젝트", len(df))
         st.metric("진행 중", len(df[df['status'] == '진행 중']))
         st.metric("평균 진척률", f"{df['completion_rate'].mean():.0f}%" if not df.empty else "0%")
+        
+        st.markdown("---")
+        
+        # ==================== 만든 사람 정보 ====================
+        st.markdown("### 👤 만든 사람")
+        st.markdown("""
+        **바이오QA팀**  
+        송수용  
+        ssy@ckdpharm.com
+        """)
         
         st.markdown("---")
         st.markdown(f"**개발:** Claude + Streamlit")
