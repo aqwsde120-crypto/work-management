@@ -1,19 +1,14 @@
 # pages/kanban.py
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
 def show_kanban_board(df):
-    """Kanban 보드 화면 - 안정 버전"""
+    """Kanban 보드 화면 - 완료 상태는 지연 표시 안 함"""
     st.title("🗂️ Kanban 보드")
     st.markdown("---")
     
-    if df.empty:
-        st.info("아직 등록된 프로젝트가 없습니다. '새 프로젝트/업무 추가' 메뉴에서 프로젝트를 등록해주세요.")
-        return
-    
-    if 'status' not in df.columns:
-        st.error("데이터에 'status' 컬럼이 없습니다. Supabase 테이블을 확인해주세요.")
+    if df.empty or 'status' not in df.columns:
+        st.info("아직 등록된 프로젝트가 없습니다. 새 프로젝트를 추가해주세요.")
         return
     
     kanban_columns = {
@@ -34,7 +29,7 @@ def show_kanban_board(df):
             
             for _, task in tasks.iterrows():
                 with st.container(border=True):
-                    # 분류 배지
+                    # 분류
                     category = task.get('category', '미분류')
                     st.markdown(f"**{category}**")
                     
@@ -47,19 +42,27 @@ def show_kanban_board(df):
                     # 담당자
                     st.write(f"👤 {task.get('assignee', '미지정')}")
                     
-                    # 마감일
+                    # 마감일 및 상태
                     deadline = task.get('deadline')
                     if pd.notna(deadline):
                         try:
-                            deadline_str = pd.to_datetime(deadline).strftime('%Y-%m-%d')
-                            days_left = (pd.to_datetime(deadline) - pd.Timestamp.now()).days
+                            deadline_dt = pd.to_datetime(deadline)
+                            days_left = (deadline_dt - pd.Timestamp.now()).days
                             
-                            if days_left < 0:
-                                st.error(f"📅 {deadline_str} (지연)")
+                            if task.get('status') == "완료":
+                                status_text = "✅ 완료"
+                                status_color = "green"
+                            elif days_left < 0:
+                                status_text = f"🔴 지연 (D{days_left})"
+                                status_color = "red"
                             elif days_left <= 7:
-                                st.warning(f"📅 {deadline_str} (D-{days_left})")
+                                status_text = f"🟡 D-{days_left}"
+                                status_color = "orange"
                             else:
-                                st.info(f"📅 {deadline_str} (D-{days_left})")
+                                status_text = f"🟢 D-{days_left}"
+                                status_color = "green"
+                                
+                            st.write(f"📅 {deadline_dt.strftime('%Y-%m-%d')} **{status_text}**")
                         except:
                             st.write(f"📅 {deadline}")
                     else:
