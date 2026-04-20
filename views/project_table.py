@@ -136,47 +136,63 @@ def show_project_table(df, show_archived=False):
         all_df = pd.DataFrame()
     
     if not all_df.empty:
+        # 보관 상태를 더 명확하게 표시
         selected_ids = st.multiselect(
-            "보관 / 해제할 프로젝트 선택",
+            "보관하거나 보관 해제할 프로젝트 선택",
             options=all_df['id'].tolist(),
-            format_func=lambda x: f"{'🗄️ ' if all_df[all_df['id']==x].get('archived', pd.Series([False])).iloc[0] else '✅ '}"
+            format_func=lambda x: f"{'🗄️ 보관됨' if all_df[all_df['id']==x].get('archived', pd.Series([False])).iloc[0] else '✅ 활성'} | "
                                  f"[{all_df[all_df['id']==x].get('part', pd.Series(['미지정'])).iloc[0]}] "
-                                 f"{all_df[all_df['id']==x]['project_name'].iloc[0]}"
+                                 f"{all_df[all_df['id']==x]['project_name'].iloc[0]} - "
+                                 f"{all_df[all_df['id']==x]['title'].iloc[0]}"
         )
         
         col_a, col_b = st.columns(2)
         with col_a:
-            if st.button("🗄️ 보관하기", use_container_width=True):
-                if selected_ids:
+            if st.button("🗄️ 선택한 프로젝트 보관하기", use_container_width=True):
+                if not selected_ids:
+                    st.warning("프로젝트를 선택해주세요.")
+                else:
                     supabase = st.session_state.db_conn
                     count = 0
                     for tid in selected_ids:
                         try:
-                            supabase.table("tasks").update({"archived": True}).eq("id", tid).execute()
-                            count += 1
+                            # 이미 보관된 것은 제외하고 보관 처리
+                            current = all_df[all_df['id'] == tid]['archived'].iloc[0]
+                            if not current:
+                                supabase.table("tasks").update({"archived": True}).eq("id", tid).execute()
+                                count += 1
                         except:
                             pass
                     if count > 0:
-                        st.success(f"{count}개 프로젝트를 보관했습니다.")
+                        st.success(f"🗄️ {count}개 프로젝트를 보관했습니다.")
                         time.sleep(2.0)
                         st.rerun()
+                    else:
+                        st.info("선택한 프로젝트는 이미 보관되어 있습니다.")
+        
         with col_b:
-            if st.button("🔓 보관 해제하기", use_container_width=True):
-                if selected_ids:
+            if st.button("🔓 선택한 프로젝트 보관 해제하기", use_container_width=True):
+                if not selected_ids:
+                    st.warning("프로젝트를 선택해주세요.")
+                else:
                     supabase = st.session_state.db_conn
                     count = 0
                     for tid in selected_ids:
                         try:
-                            supabase.table("tasks").update({"archived": False}).eq("id", tid).execute()
-                            count += 1
+                            current = all_df[all_df['id'] == tid]['archived'].iloc[0]
+                            if current:
+                                supabase.table("tasks").update({"archived": False}).eq("id", tid).execute()
+                                count += 1
                         except:
                             pass
                     if count > 0:
-                        st.success(f"{count}개 프로젝트를 보관 해제했습니다.")
+                        st.success(f"🔓 {count}개 프로젝트를 보관 해제했습니다.")
                         time.sleep(2.0)
                         st.rerun()
+                    else:
+                        st.info("선택한 프로젝트는 이미 활성 상태입니다.")
     else:
-        st.info("아카이브할 프로젝트가 없습니다.")
+        st.info("아카이브 관리할 프로젝트가 없습니다.")
 
     # Excel 다운로드
     st.markdown("<br>", unsafe_allow_html=True)
