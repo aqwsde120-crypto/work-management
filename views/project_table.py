@@ -7,7 +7,7 @@ from config import PARTS, CATEGORIES, STATUSES
 from database import load_team_members, load_tasks
 
 def show_project_table(df, show_archived=False):
-    """프로젝트 테이블 화면 - 삭제 기능 추가 버전"""
+    """프로젝트 테이블 화면 - 아카이브 기능 완전 구현"""
     st.title("📋 프로젝트 테이블")
     st.markdown("---")
     
@@ -80,53 +80,6 @@ def show_project_table(df, show_archived=False):
     else:
         st.info("표시할 프로젝트가 없습니다.")
 
-    # ==================== 프로젝트 수정 및 삭제 ====================
-    st.markdown("---")
-    st.subheader("✏️ 프로젝트 수정 / 삭제")
-    
-    if not filtered_df.empty:
-        project_to_edit = st.selectbox(
-            "수정하거나 삭제할 프로젝트 선택",
-            options=filtered_df['id'].tolist(),
-            format_func=lambda x: f"[{filtered_df[filtered_df['id']==x].get('part', pd.Series(['미지정'])).iloc[0]}] "
-                                 f"{filtered_df[filtered_df['id']==x]['project_name'].iloc[0]} - "
-                                 f"{filtered_df[filtered_df['id']==x]['title'].iloc[0]}"
-        )
-        
-        if project_to_edit:
-            task = filtered_df[filtered_df['id'] == project_to_edit].iloc[0]
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                with st.form("edit_form"):
-                    new_project_name = st.text_input("프로젝트명", value=task.get('project_name', ''))
-                    new_title = st.text_input("업무 제목", value=task.get('title', ''))
-                    new_assignee = st.text_input("담당자", value=task.get('assignee', ''))
-                    new_part = st.selectbox("파트", options=PARTS, index=PARTS.index(task.get('part', '미지정')))
-                    new_category = st.selectbox("분류", options=CATEGORIES)
-                    new_status = st.selectbox("진행 현황", options=STATUSES)
-                    new_planned = st.slider("계획 일정 (%)", 0, 100, int(task.get('planned_progress', 0)))
-                    new_actual = st.slider("실제 진행 (%)", 0, 100, int(task.get('actual_progress', 0)))
-                    new_completion = st.slider("프로젝트 진척률 (%)", 0, 100, int(task.get('completion_rate', 0)))
-                    new_deadline = st.date_input("마감일", value=pd.to_datetime(task.get('deadline')))
-                    new_description = st.text_area("업무 설명", value=task.get('description', ''))
-                    
-                    if st.form_submit_button("💾 수정 내용 저장", type="primary"):
-                        st.info("Supabase 프로젝트 수정 기능은 현재 준비 중입니다.")
-            
-            with col2:
-                st.subheader("🗑️ 프로젝트 삭제")
-                st.warning("⚠️ 삭제하면 복구할 수 없습니다.")
-                if st.button("🗑️ 이 프로젝트 삭제하기", type="secondary"):
-                    if st.checkbox("정말로 삭제하시겠습니까? (확인 체크)"):
-                        try:
-                            supabase = st.session_state.db_conn
-                            supabase.table("tasks").delete().eq("id", project_to_edit).execute()
-                            st.success("✅ 프로젝트가 삭제되었습니다.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"삭제 실패: {str(e)}")
-
     # ==================== 아카이브 관리 ====================
     st.markdown("---")
     st.subheader("🗄️ 아카이브 관리")
@@ -140,7 +93,7 @@ def show_project_table(df, show_archived=False):
         selected_ids = st.multiselect(
             "보관하거나 보관 해제할 프로젝트 선택",
             options=all_df['id'].tolist(),
-            format_func=lambda x: f"{'🗄️ ' if all_df[all_df['id']==x].get('archived', pd.Series([False])).iloc[0] else '✅ '}"
+            format_func=lambda x: f"{'🗄️ 보관됨' if all_df[all_df['id']==x].get('archived', pd.Series([False])).iloc[0] else '✅ 활성'} | "
                                  f"[{all_df[all_df['id']==x].get('part', pd.Series(['미지정'])).iloc[0]}] "
                                  f"{all_df[all_df['id']==x]['project_name'].iloc[0]} - "
                                  f"{all_df[all_df['id']==x]['title'].iloc[0]}"
@@ -148,21 +101,37 @@ def show_project_table(df, show_archived=False):
         
         col_a, col_b = st.columns(2)
         with col_a:
-            if st.button("🗄️ 선택한 프로젝트 보관하기", use_container_width=True):
+            if st.button("🗄️ 선택한 프로젝트 보관하기", use_container_width=True, type="secondary"):
                 if selected_ids:
                     supabase = st.session_state.db_conn
+                    updated_count = 0
                     for tid in selected_ids:
-                        supabase.table("tasks").update({"archived": True}).eq("id", tid).execute()
-                    st.success(f"{len(selected_ids)}개 프로젝트를 보관했습니다.")
-                    st.rerun()
+                        try:
+                            supabase.table("tasks").update({"archived": True}).eq("id", tid).execute()
+                            updated_count += 1
+                        except:
+                            pass
+                    if updated_count > 0:
+                        st.success(f"{updated_count}개 프로젝트를 보관했습니다.")
+                        st.rerun()
+                    else:
+                        st.warning("보관 처리할 프로젝트가 없습니다.")
         with col_b:
-            if st.button("🔓 선택한 프로젝트 보관 해제하기", use_container_width=True):
+            if st.button("🔓 선택한 프로젝트 보관 해제하기", use_container_width=True, type="secondary"):
                 if selected_ids:
                     supabase = st.session_state.db_conn
+                    updated_count = 0
                     for tid in selected_ids:
-                        supabase.table("tasks").update({"archived": False}).eq("id", tid).execute()
-                    st.success(f"{len(selected_ids)}개 프로젝트를 보관 해제했습니다.")
-                    st.rerun()
+                        try:
+                            supabase.table("tasks").update({"archived": False}).eq("id", tid).execute()
+                            updated_count += 1
+                        except:
+                            pass
+                    if updated_count > 0:
+                        st.success(f"{updated_count}개 프로젝트를 보관 해제했습니다.")
+                        st.rerun()
+                    else:
+                        st.warning("보관 해제할 프로젝트가 없습니다.")
     else:
         st.info("아카이브 관리할 프로젝트가 없습니다.")
 
