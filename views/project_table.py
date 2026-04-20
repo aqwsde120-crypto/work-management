@@ -83,12 +83,11 @@ def show_project_table(df, show_archived=False):
     # ==================== 프로젝트 수정 ====================
     st.markdown("---")
     st.subheader("✏️ 프로젝트 수정")
-    
     if not filtered_df.empty:
         project_to_edit = st.selectbox(
             "수정할 프로젝트 선택",
             options=filtered_df['id'].tolist(),
-            format_func=lambda x: f"[{filtered_df[filtered_df['id']==x]['part'].iloc[0] if 'part' in filtered_df.columns else '미지정'}] "
+            format_func=lambda x: f"[{filtered_df[filtered_df['id']==x].get('part', pd.Series(['미지정'])).iloc[0]}] "
                                  f"{filtered_df[filtered_df['id']==x]['project_name'].iloc[0]}"
         )
         
@@ -117,12 +116,43 @@ def show_project_table(df, show_archived=False):
                 
                 if submitted:
                     st.info("Supabase 프로젝트 수정 기능은 현재 준비 중입니다. 곧 업데이트 예정입니다.")
-                    # 추후 Supabase update 로직 추가 예정
 
-    # 아카이브 관리
+    # ==================== 아카이브 관리 ====================
     st.markdown("---")
     st.subheader("🗄️ 아카이브 관리")
-    st.info("아카이브 기능은 Supabase 완전 연동 후 추가 예정입니다.")
+    
+    # 모든 프로젝트 불러오기 (아카이브 포함)
+    all_df = load_tasks(show_archived=True)
+    
+    if not all_df.empty:
+        selected_ids = st.multiselect(
+            "보관하거나 보관 해제할 프로젝트 선택",
+            options=all_df['id'].tolist(),
+            format_func=lambda x: f"{'🗄️ ' if all_df[all_df['id']==x].get('archived', pd.Series([0])).iloc[0] else '✅ '}"
+                                 f"[{all_df[all_df['id']==x].get('part', pd.Series(['미지정'])).iloc[0]}] "
+                                 f"{all_df[all_df['id']==x]['project_name'].iloc[0]} - "
+                                 f"{all_df[all_df['id']==x]['title'].iloc[0]}"
+        )
+        
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if st.button("🗄️ 선택한 프로젝트 보관하기", use_container_width=True):
+                if selected_ids:
+                    supabase = st.session_state.db_conn
+                    for tid in selected_ids:
+                        supabase.table("tasks").update({"archived": True}).eq("id", tid).execute()
+                    st.success(f"{len(selected_ids)}개 프로젝트를 보관했습니다.")
+                    st.rerun()
+        with col_b:
+            if st.button("🔓 선택한 프로젝트 보관 해제하기", use_container_width=True):
+                if selected_ids:
+                    supabase = st.session_state.db_conn
+                    for tid in selected_ids:
+                        supabase.table("tasks").update({"archived": False}).eq("id", tid).execute()
+                    st.success(f"{len(selected_ids)}개 프로젝트를 보관 해제했습니다.")
+                    st.rerun()
+    else:
+        st.info("아카이브 관리할 프로젝트가 없습니다.")
 
     # Excel 다운로드
     st.markdown("<br>", unsafe_allow_html=True)
