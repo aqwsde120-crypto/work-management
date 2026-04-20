@@ -6,11 +6,11 @@ from config import PARTS, CATEGORIES, STATUSES
 from database import load_team_members, save_task
 
 def show_add_project():
-    """새 프로젝트/업무 추가 화면 (Supabase 버전)"""
+    """새 프로젝트/업무 추가 화면 (Supabase 안정 버전)"""
     st.title("➕ 새 프로젝트/업무 추가")
     st.markdown("---")
     
-    with st.form("add_project_form"):
+    with st.form("add_project_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         
         with col1:
@@ -18,7 +18,13 @@ def show_add_project():
             title = st.text_input("업무 제목 *", placeholder="예: 2026년 상반기 규제 변경 분석")
             description = st.text_area("업무 설명", placeholder="상세 업무 내용을 입력하세요")
             
-            team_members = load_team_members()['name'].tolist()
+            # 팀원 목록 안전하게 불러오기
+            try:
+                team_df = load_team_members()
+                team_members = team_df['name'].tolist() if not team_df.empty and 'name' in team_df.columns else []
+            except:
+                team_members = []
+            
             assignee = st.multiselect("담당자 *", options=team_members)
         
         with col2:
@@ -36,7 +42,8 @@ def show_add_project():
             
             deadline = st.date_input("마감일 *", value=datetime.now() + timedelta(days=30))
         
-        submitted = st.form_submit_button("✅ 프로젝트 추가", use_container_width=True)
+        # Submit 버튼 명확히 추가
+        submitted = st.form_submit_button("✅ 프로젝트 추가", use_container_width=True, type="primary")
         
         if submitted:
             if not project_name or not title or not assignee or not part:
@@ -66,3 +73,8 @@ def show_add_project():
                     
                 except Exception as e:
                     st.error(f"저장 중 오류가 발생했습니다: {str(e)}")
+                    st.info("Supabase 연결을 확인해주세요.")
+
+    # 도움말
+    st.markdown("---")
+    st.caption("※ 필수 항목(*)을 모두 입력해야 프로젝트가 저장됩니다.")
