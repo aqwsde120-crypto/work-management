@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 def show_dashboard(df):
-    """대시보드 화면"""
+    """대시보드 화면 - Supabase 안전 버전"""
     st.title("📊 대시보드")
     st.markdown("---")
     
@@ -22,7 +22,7 @@ def show_dashboard(df):
         """, unsafe_allow_html=True)
     
     with col2:
-        in_progress = len(df[df['status'] == '진행 중'])
+        in_progress = len(df[df['status'] == '진행 중']) if 'status' in df.columns and not df.empty else 0
         st.markdown(f"""
         <div class="metric-card" style="background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);">
             <h3>{in_progress}</h3>
@@ -31,7 +31,7 @@ def show_dashboard(df):
         """, unsafe_allow_html=True)
     
     with col3:
-        completed = len(df[df['status'] == '완료'])
+        completed = len(df[df['status'] == '완료']) if 'status' in df.columns and not df.empty else 0
         st.markdown(f"""
         <div class="metric-card" style="background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);">
             <h3>{completed}</h3>
@@ -40,7 +40,7 @@ def show_dashboard(df):
         """, unsafe_allow_html=True)
     
     with col4:
-        avg_progress = df['completion_rate'].mean() if not df.empty else 0
+        avg_progress = df['completion_rate'].mean() if 'completion_rate' in df.columns and not df.empty else 0
         st.markdown(f"""
         <div class="metric-card" style="background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);">
             <h3>{avg_progress:.0f}%</h3>
@@ -56,10 +56,11 @@ def show_dashboard(df):
     with col1:
         st.subheader("👥 담당자별 워크로드")
         assignee_work = {}
-        for assignees in df['assignee'].dropna():
-            for person in assignees.split(','):
-                person = person.strip()
-                assignee_work[person] = assignee_work.get(person, 0) + 1
+        if 'assignee' in df.columns:
+            for assignees in df['assignee'].dropna():
+                for person in assignees.split(','):
+                    person = person.strip()
+                    assignee_work[person] = assignee_work.get(person, 0) + 1
         
         if assignee_work:
             fig = px.bar(
@@ -76,45 +77,47 @@ def show_dashboard(df):
     
     with col2:
         st.subheader("📈 상태별 분포")
-        status_counts = df['status'].value_counts()
-        colors = {'진행 중': '#4299e1', '완료': '#48bb78', '일정 지연': '#f56565', '검토 중': '#ed8936'}
-        
-        fig = go.Figure(data=[go.Pie(
-            labels=status_counts.index,
-            values=status_counts.values,
-            hole=.4,
-            marker_colors=[colors.get(status, '#999') for status in status_counts.index]
-        )])
-        fig.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0))
-        st.plotly_chart(fig, use_container_width=True)
+        if 'status' in df.columns and not df.empty:
+            status_counts = df['status'].value_counts()
+            colors = {'진행 중': '#4299e1', '완료': '#48bb78', '일정 지연': '#f56565', '검토 중': '#ed8936'}
+            
+            fig = go.Figure(data=[go.Pie(
+                labels=status_counts.index,
+                values=status_counts.values,
+                hole=.4,
+                marker_colors=[colors.get(status, '#999') for status in status_counts.index]
+            )])
+            fig.update_layout(height=300, margin=dict(l=0, r=0, t=30, b=0))
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("상태 데이터가 없습니다.")
     
     # 지연 프로젝트
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("⚠️ 지연 프로젝트")
-    delayed = df[df['status'] == '일정 지연']
-    if len(delayed) > 0:
-        for _, task in delayed.iterrows():
-            st.error(f"**{task['project_name']}** - {task['title']} (마감: {task['deadline'].strftime('%Y-%m-%d')})")
+    if 'status' in df.columns:
+        delayed = df[df['status'] == '일정 지연']
+        if len(delayed) > 0:
+            for _, task in delayed.iterrows():
+                st.error(f"**{task.get('project_name', '')}** - {task.get('title', '')}")
+        else:
+            st.success("✅ 지연된 프로젝트가 없습니다!")
     else:
-        st.success("✅ 지연된 프로젝트가 없습니다!")
+        st.info("데이터가 없습니다.")
     
-    # ==================== 수정된 마감 임박 부분 ====================
+    # 마감 임박 프로젝트
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("📅 마감 임박 (7일 이내)")
     
-    if df.empty:
+    if df.empty or 'deadline' not in df.columns or 'status' not in df.columns:
         st.info("마감 임박한 프로젝트가 없습니다.")
         return
     
-    # 안전하게 datetime 처리
     today = pd.Timestamp.now().normalize()
     df_copy = df.copy()
     df_copy['deadline'] = pd.to_datetime(df_copy['deadline'], errors='coerce')
-    
-    # NaT(유효하지 않은 날짜) 제거
     df_copy = df_copy.dropna(subset=['deadline'])
     
-    # 마감 임박 계산
     upcoming = df_copy[
         ((df_copy['deadline'] - today).dt.days.between(0, 7)) & 
         (df_copy['status'] != '완료')
@@ -123,6 +126,6 @@ def show_dashboard(df):
     if len(upcoming) > 0:
         for _, task in upcoming.iterrows():
             days_left = (task['deadline'] - today).days
-            st.warning(f"**{task['project_name']}** - {task['title']} (D-{days_left})")
+            st.warning(f"**{task.get('project_name', '')}** - {task.get('title', '')} (D-{days_left})")
     else:
         st.info("마감 임박한 프로젝트가 없습니다.")
