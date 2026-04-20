@@ -98,11 +98,27 @@ def show_dashboard(df):
     else:
         st.success("✅ 지연된 프로젝트가 없습니다!")
     
-    # 마감 임박 프로젝트
+    # ==================== 수정된 마감 임박 부분 ====================
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("📅 마감 임박 (7일 이내)")
-    today = pd.Timestamp.now()
-    upcoming = df[(df['deadline'] - today).dt.days.between(0, 7) & (df['status'] != '완료')]
+    
+    if df.empty:
+        st.info("마감 임박한 프로젝트가 없습니다.")
+        return
+    
+    # 안전하게 datetime 처리
+    today = pd.Timestamp.now().normalize()
+    df_copy = df.copy()
+    df_copy['deadline'] = pd.to_datetime(df_copy['deadline'], errors='coerce')
+    
+    # NaT(유효하지 않은 날짜) 제거
+    df_copy = df_copy.dropna(subset=['deadline'])
+    
+    # 마감 임박 계산
+    upcoming = df_copy[
+        ((df_copy['deadline'] - today).dt.days.between(0, 7)) & 
+        (df_copy['status'] != '완료')
+    ]
     
     if len(upcoming) > 0:
         for _, task in upcoming.iterrows():
