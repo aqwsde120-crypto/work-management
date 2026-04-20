@@ -12,10 +12,11 @@ def show_project_table(df, show_archived=False):
     st.markdown("---")
     
     # 팀원 목록 안전하게 불러오기
-    if 'team_members' in st.session_state and not st.session_state.team_members.empty:
-        team_members = st.session_state.team_members['name'].tolist()
-    else:
-        team_members = load_team_members()['name'].tolist()
+    try:
+        team_df = load_team_members()
+        team_members = team_df['name'].tolist() if not team_df.empty and 'name' in team_df.columns else []
+    except:
+        team_members = []
     
     # 필터 영역
     col1, col2, col3, col4, col5 = st.columns(5)
@@ -37,20 +38,20 @@ def show_project_table(df, show_archived=False):
     filtered_df = df.copy()
     if search_term and not filtered_df.empty:
         filtered_df = filtered_df[
-            filtered_df['project_name'].str.contains(search_term, case=False, na=False) |
-            filtered_df['title'].str.contains(search_term, case=False, na=False)
+            filtered_df.get('project_name', pd.Series()).str.contains(search_term, case=False, na=False) |
+            filtered_df.get('title', pd.Series()).str.contains(search_term, case=False, na=False)
         ]
-    if selected_assignees and not filtered_df.empty:
+    if selected_assignees and not filtered_df.empty and 'assignee' in filtered_df.columns:
         filtered_df = filtered_df[
             filtered_df['assignee'].apply(
                 lambda x: any(person in str(x) for person in selected_assignees) if pd.notna(x) else False
             )
         ]
-    if selected_status and not filtered_df.empty:
+    if selected_status and not filtered_df.empty and 'status' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['status'].isin(selected_status)]
-    if selected_category and not filtered_df.empty:
+    if selected_category and not filtered_df.empty and 'category' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['category'].isin(selected_category)]
-    if selected_part and not filtered_df.empty:
+    if selected_part and not filtered_df.empty and 'part' in filtered_df.columns:
         filtered_df = filtered_df[filtered_df['part'].isin(selected_part)]
     
     st.markdown(f"**총 {len(filtered_df)}개 프로젝트**")
@@ -58,7 +59,8 @@ def show_project_table(df, show_archived=False):
     # 테이블 표시
     if not filtered_df.empty:
         display_df = filtered_df.copy()
-        display_df['deadline'] = pd.to_datetime(display_df['deadline'], errors='coerce').dt.strftime('%Y-%m-%d')
+        if 'deadline' in display_df.columns:
+            display_df['deadline'] = pd.to_datetime(display_df['deadline'], errors='coerce').dt.strftime('%Y-%m-%d')
         
         st.dataframe(
             display_df[['id', 'part', 'project_name', 'title', 'assignee', 'category', 'status',
@@ -81,54 +83,17 @@ def show_project_table(df, show_archived=False):
             height=600
         )
     else:
-        st.info("표시할 프로젝트가 없습니다.")
+        st.info("표시할 프로젝트가 없습니다. 새 프로젝트를 추가해보세요.")
 
-    # ==================== 프로젝트 수정 ====================
+    # 프로젝트 수정 (간단 버전 - Supabase 연동 준비)
     st.markdown("---")
     st.subheader("✏️ 프로젝트 수정")
-    if not filtered_df.empty:
-        project_to_edit = st.selectbox(
-            "수정할 프로젝트 선택",
-            options=filtered_df['id'].tolist(),
-            format_func=lambda x: f"[{filtered_df[filtered_df['id']==x]['part'].iloc[0]}] "
-                                 f"{filtered_df[filtered_df['id']==x]['project_name'].iloc[0]} - "
-                                 f"{filtered_df[filtered_df['id']==x]['title'].iloc[0]}"
-        )
-        
-        if project_to_edit:
-            task = filtered_df[filtered_df['id'] == project_to_edit].iloc[0]
-            
-            with st.form("edit_form"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    new_project_name = st.text_input("프로젝트명", value=task.get('project_name', ''))
-                    new_title = st.text_input("업무 제목", value=task.get('title', ''))
-                    new_assignee = st.text_input("담당자", value=task.get('assignee', ''))
-                    new_part = st.selectbox("파트", options=PARTS, 
-                                          index=PARTS.index(task.get('part', '미지정')) if task.get('part') in PARTS else 4)
-                    new_category = st.selectbox("분류", options=CATEGORIES)
-                
-                with col2:
-                    new_status = st.selectbox("진행 현황", options=STATUSES)
-                    new_planned = st.slider("계획 일정 (%)", 0, 100, int(task.get('planned_progress', 0)))
-                    new_actual = st.slider("실제 진행 (%)", 0, 100, int(task.get('actual_progress', 0)))
-                    new_completion = st.slider("프로젝트 진척률 (%)", 0, 100, int(task.get('completion_rate', 0)))
-                    new_deadline = st.date_input("마감일", value=pd.to_datetime(task.get('deadline')))
-                
-                new_description = st.text_area("업무 설명", value=task.get('description', ''))
-                
-                submitted = st.form_submit_button("💾 수정 내용 저장")
-                
-                if submitted:
-                    conn = st.session_state.db_conn
-                    # Supabase 업데이트 로직은 추후 추가
-                    st.success("✅ 수정이 저장되었습니다! (Supabase 업데이트 준비중)")
-                    st.rerun()
+    st.info("프로젝트 수정 기능은 Supabase 완전 연동 후 추가됩니다.")
 
-    # 아카이브 관리 (간단 버전)
+    # 아카이브 관리
     st.markdown("---")
     st.subheader("🗄️ 아카이브 관리")
-    st.info("아카이브 기능은 Supabase 전환 후 추가 예정입니다.")
+    st.info("아카이브 기능은 Supabase 완전 연동 후 추가됩니다.")
 
     # Excel 다운로드
     st.markdown("<br>", unsafe_allow_html=True)
