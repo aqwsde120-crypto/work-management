@@ -1,14 +1,13 @@
 # app.py
 """
-팀 프로젝트 관리 시스템
-Professional Team Project & Task Management System
+종근당 바이오QA팀 프로젝트 관리 시스템
 """
 import streamlit as st
 from datetime import datetime
 
-# 페이지 설정
+# 페이지 설정 - 앱 이름 변경
 st.set_page_config(
-    page_title="팀 프로젝트 관리",
+    page_title="종근당 바이오QA팀 프로젝트 관리",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -19,7 +18,6 @@ from config import APP_TITLE, APP_VERSION
 from database import init_db, load_tasks, load_team_members
 from utils import load_custom_css
 
-# views 폴더로 변경했으므로 import 경로 수정
 from views.dashboard import show_dashboard
 from views.project_table import show_project_table
 from views.kanban import show_kanban_board
@@ -70,7 +68,7 @@ def main():
 
     # 사이드바
     with st.sidebar:
-        st.title("🎯 팀 프로젝트 관리")
+        st.title("🎯 종근당 바이오QA팀 프로젝트 관리")   # ← 여기서도 이름 변경
         st.markdown("---")
         
         show_archived = st.checkbox("🗄️ 아카이브된 프로젝트도 보기", value=False)
