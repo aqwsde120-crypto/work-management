@@ -2,22 +2,19 @@
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
-from datetime import datetime
+from datetime import datetime, timedelta
 
 @st.cache_resource
 def get_supabase_client():
-    """Supabase 클라이언트 생성"""
+    """Supabase 클라이언트 (한 번만 생성)"""
     url = st.secrets["supabase"]["SUPABASE_URL"]
     key = st.secrets["supabase"]["SUPABASE_KEY"]
     return create_client(url, key)
 
-def init_db():
-    """Supabase는 별도 초기화 불필요 (테이블은 Supabase에서 이미 생성)"""
-    return get_supabase_client()
-
+@st.cache_data(ttl=60)   # 60초 동안 캐싱 (필요시 시간 조정)
 def load_tasks(show_archived=False):
-    """태스크 불러오기"""
-    supabase: Client = st.session_state.db_conn
+    """태스크 불러오기 - 캐싱 적용"""
+    supabase = get_supabase_client()
     
     if show_archived:
         response = supabase.table("tasks").select("*").order("created_at", desc=True).execute()
@@ -29,16 +26,17 @@ def load_tasks(show_archived=False):
         df['deadline'] = pd.to_datetime(df['deadline'], errors='coerce')
     return df
 
+@st.cache_data(ttl=300)   # 팀원은 5분 동안 캐싱
 def load_team_members():
-    """팀원 불러오기"""
-    supabase: Client = st.session_state.db_conn
+    """팀원 불러오기 - 캐싱 적용"""
+    supabase = get_supabase_client()
     response = supabase.table("team_members").select("*").order("name").execute()
     return pd.DataFrame(response.data)
 
 def save_task(project_name, title, description, assignee, category, status,
               planned_progress, actual_progress, completion_rate, deadline, part):
     """새 프로젝트 저장"""
-    supabase: Client = st.session_state.db_conn
+    supabase = get_supabase_client()
     assignee_str = ','.join(assignee) if isinstance(assignee, list) else assignee
     
     data = {
@@ -56,4 +54,6 @@ def save_task(project_name, title, description, assignee, category, status,
     }
     
     response = supabase.table("tasks").insert(data).execute()
+    # 캐시 무효화
+    load_tasks.clear()
     return response.data
