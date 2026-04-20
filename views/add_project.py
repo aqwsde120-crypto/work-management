@@ -3,10 +3,10 @@ import streamlit as st
 from datetime import datetime, timedelta
 import time
 from config import PARTS, CATEGORIES, STATUSES
-from database import load_team_members
+from database import load_team_members, save_task
 
 def show_add_project():
-    """새 프로젝트/업무 추가 화면"""
+    """새 프로젝트/업무 추가 화면 (Supabase 버전)"""
     st.title("➕ 새 프로젝트/업무 추가")
     st.markdown("---")
     
@@ -42,25 +42,27 @@ def show_add_project():
             if not project_name or not title or not assignee or not part:
                 st.error("❌ 필수 항목(*)을 모두 입력해주세요!")
             else:
-                conn = st.session_state.db_conn
-                c = conn.cursor()
-                assignee_str = ','.join(assignee)
-                
-                c.execute('''
-                INSERT INTO tasks
-                (project_name, title, description, assignee, category, status,
-                 planned_progress, actual_progress, completion_rate, deadline, part)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (project_name, title, description, assignee_str, category, status,
-                      planned_progress, actual_progress, completion_rate, 
-                      deadline.strftime('%Y-%m-%d'), part))
-                
-                conn.commit()
-                
-                # 성공 메시지
-                st.success(f"🎉 '{title}' 업무가 성공적으로 추가되었습니다! (파트: {part})")
-                st.balloons()
-                st.toast(f"프로젝트 '{title}'가 추가되었습니다!", icon="✅")
-                
-                time.sleep(1.5)
-                st.rerun()
+                try:
+                    save_task(
+                        project_name=project_name,
+                        title=title,
+                        description=description,
+                        assignee=assignee,
+                        category=category,
+                        status=status,
+                        planned_progress=planned_progress,
+                        actual_progress=actual_progress,
+                        completion_rate=completion_rate,
+                        deadline=deadline.strftime('%Y-%m-%d'),
+                        part=part
+                    )
+                    
+                    st.success(f"🎉 '{title}' 업무가 성공적으로 추가되었습니다! (파트: {part})")
+                    st.balloons()
+                    st.toast(f"프로젝트 '{title}'가 추가되었습니다!", icon="✅")
+                    
+                    time.sleep(1.5)
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"저장 중 오류가 발생했습니다: {str(e)}")
