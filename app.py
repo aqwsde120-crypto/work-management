@@ -4,7 +4,6 @@
 Professional Team Project & Task Management System
 """
 import streamlit as st
-import pandas as pd
 from datetime import datetime
 
 # 페이지 설정
@@ -16,18 +15,19 @@ st.set_page_config(
 )
 
 # 모듈 import
-from config import PARTS, APP_TITLE, APP_VERSION
+from config import APP_TITLE, APP_VERSION
 from database import init_db, load_tasks, load_team_members
 from utils import load_custom_css
-from pages.dashboard import show_dashboard
-from pages.project_table import show_project_table
-from pages.kanban import show_kanban_board
-from pages.add_project import show_add_project
-from pages.team_management import show_team_management
+
+# views 폴더로 변경했으므로 import 경로 수정
+from views.dashboard import show_dashboard
+from views.project_table import show_project_table
+from views.kanban import show_kanban_board
+from views.add_project import show_add_project
+from views.team_management import show_team_management
 
 # ==================== 비밀번호 체크 ====================
 def check_password():
-    """간단한 비밀번호 보호"""
     def password_entered():
         if st.session_state["password"] == st.secrets.get("app_password", "team123"):
             st.session_state["password_correct"] = True
@@ -54,23 +54,18 @@ def check_password():
 
 # ==================== 메인 앱 ====================
 def main():
-    # 비밀번호 체크
     if not check_password():
         return
 
-    # 데이터베이스 초기화
     if 'db_conn' not in st.session_state:
         st.session_state.db_conn = init_db()
     
-    # 팀원 데이터 미리 로드 (세션에 저장)
     if 'team_members' not in st.session_state:
         st.session_state.team_members = load_team_members()
     
-    # load_tasks 함수를 세션에 저장 (다른 페이지에서 사용)
     if 'load_tasks_func' not in st.session_state:
         st.session_state.load_tasks_func = load_tasks
 
-    # 커스텀 CSS 로드
     load_custom_css()
 
     # 사이드바
@@ -78,7 +73,6 @@ def main():
         st.title("🎯 팀 프로젝트 관리")
         st.markdown("---")
         
-        # 네비게이션
         show_archived = st.checkbox("🗄️ 아카이브된 프로젝트도 보기", value=False)
         
         menu = st.radio(
@@ -102,7 +96,7 @@ def main():
     # 데이터 로드
     df = load_tasks()
 
-    # 선택된 메뉴에 따라 화면 표시
+    # 메뉴에 따라 화면 표시
     if menu == "📊 대시보드":
         show_dashboard(df)
     elif menu == "📋 프로젝트 테이블":
