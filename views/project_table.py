@@ -18,7 +18,7 @@ def show_project_table(df, show_archived=False):
     except:
         team_members = []
     
-    # 필터
+    # 필터 영역
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         search_term = st.text_input("🔍 검색", "")
@@ -89,7 +89,7 @@ def show_project_table(df, show_archived=False):
                                  f"{filtered_df[filtered_df['id']==x]['project_name'].iloc[0]}"
         )
         
-        tab1, tab2 = st.tabs(["📝 수정하기", "🗑️ 삭제하기"])
+        tab1, tab2 = st.tabs(["📝 수정", "🗑️ 삭제"])
         
         with tab1:
             with st.form("edit_form"):
@@ -98,8 +98,7 @@ def show_project_table(df, show_archived=False):
                     new_project_name = st.text_input("프로젝트명", value=filtered_df[filtered_df['id']==project_to_edit]['project_name'].iloc[0])
                     new_title = st.text_input("업무 제목", value=filtered_df[filtered_df['id']==project_to_edit]['title'].iloc[0])
                     new_assignee = st.text_input("담당자", value=filtered_df[filtered_df['id']==project_to_edit]['assignee'].iloc[0])
-                    new_part = st.selectbox("파트", options=PARTS, 
-                                          index=PARTS.index(filtered_df[filtered_df['id']==project_to_edit]['part'].iloc[0]))
+                    new_part = st.selectbox("파트", options=PARTS, index=PARTS.index(filtered_df[filtered_df['id']==project_to_edit]['part'].iloc[0]))
                     new_category = st.selectbox("분류", options=CATEGORIES)
                 
                 with col2:
@@ -116,13 +115,13 @@ def show_project_table(df, show_archived=False):
         
         with tab2:
             st.warning("⚠️ 삭제하면 복구할 수 없습니다!")
-            if st.button("🗑️ 이 프로젝트 삭제하기", type="secondary"):
-                if st.checkbox("정말 삭제하시겠습니까? (확인 체크)", key=f"delete_confirm_{project_to_edit}"):
+            if st.button("🗑️ 프로젝트 삭제하기", type="secondary"):
+                if st.checkbox("정말 삭제하시겠습니까?"):
                     try:
                         supabase = st.session_state.db_conn
                         supabase.table("tasks").delete().eq("id", project_to_edit).execute()
                         st.success("✅ 프로젝트가 삭제되었습니다.")
-                        time.sleep(1.5)
+                        time.sleep(1.8)
                         st.rerun()
                     except Exception as e:
                         st.error(f"삭제 실패: {str(e)}")
@@ -156,7 +155,7 @@ def show_project_table(df, show_archived=False):
                     count = 0
                     for tid in selected_ids:
                         try:
-                            current = all_df[all_df['id'] == tid]['archived'].iloc[0]
+                            current = all_df[all_df['id'] == tid]['archived'].iloc[0] if 'archived' in all_df.columns else False
                             if not current:
                                 supabase.table("tasks").update({"archived": True}).eq("id", tid).execute()
                                 count += 1
@@ -165,6 +164,7 @@ def show_project_table(df, show_archived=False):
                     if count > 0:
                         st.success(f"🗄️ {count}개 프로젝트를 보관했습니다.")
                         time.sleep(2.0)
+                        load_tasks.clear()   # 캐시 무효화
                         st.rerun()
                     else:
                         st.info("선택한 프로젝트는 이미 보관 상태입니다.")
@@ -178,7 +178,7 @@ def show_project_table(df, show_archived=False):
                     count = 0
                     for tid in selected_ids:
                         try:
-                            current = all_df[all_df['id'] == tid]['archived'].iloc[0]
+                            current = all_df[all_df['id'] == tid]['archived'].iloc[0] if 'archived' in all_df.columns else False
                             if current:
                                 supabase.table("tasks").update({"archived": False}).eq("id", tid).execute()
                                 count += 1
@@ -187,6 +187,7 @@ def show_project_table(df, show_archived=False):
                     if count > 0:
                         st.success(f"🔓 {count}개 프로젝트를 보관 해제했습니다.")
                         time.sleep(2.0)
+                        load_tasks.clear()   # 캐시 무효화
                         st.rerun()
                     else:
                         st.info("선택한 프로젝트는 이미 활성 상태입니다.")
