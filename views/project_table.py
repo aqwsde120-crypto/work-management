@@ -4,10 +4,10 @@ import pandas as pd
 import io
 from datetime import datetime
 from config import PARTS, CATEGORIES, STATUSES
-from database import load_team_members
+from database import load_team_members, load_tasks
 
 def show_project_table(df, show_archived=False):
-    """프로젝트 테이블 화면 - Supabase 완전 연동 버전"""
+    """프로젝트 테이블 화면 - Supabase 안정 버전"""
     st.title("📋 프로젝트 테이블")
     st.markdown("---")
     
@@ -80,55 +80,21 @@ def show_project_table(df, show_archived=False):
     else:
         st.info("표시할 프로젝트가 없습니다.")
 
-    # ==================== 프로젝트 수정 ====================
-    st.markdown("---")
-    st.subheader("✏️ 프로젝트 수정")
-    if not filtered_df.empty:
-        project_to_edit = st.selectbox(
-            "수정할 프로젝트 선택",
-            options=filtered_df['id'].tolist(),
-            format_func=lambda x: f"[{filtered_df[filtered_df['id']==x].get('part', pd.Series(['미지정'])).iloc[0]}] "
-                                 f"{filtered_df[filtered_df['id']==x]['project_name'].iloc[0]}"
-        )
-        
-        if project_to_edit:
-            task = filtered_df[filtered_df['id'] == project_to_edit].iloc[0]
-            
-            with st.form("edit_form"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    new_project_name = st.text_input("프로젝트명", value=task.get('project_name', ''))
-                    new_title = st.text_input("업무 제목", value=task.get('title', ''))
-                    new_assignee = st.text_input("담당자", value=task.get('assignee', ''))
-                    new_part = st.selectbox("파트", options=PARTS, index=PARTS.index(task.get('part', '미지정')))
-                    new_category = st.selectbox("분류", options=CATEGORIES)
-                
-                with col2:
-                    new_status = st.selectbox("진행 현황", options=STATUSES)
-                    new_planned = st.slider("계획 일정 (%)", 0, 100, int(task.get('planned_progress', 0)))
-                    new_actual = st.slider("실제 진행 (%)", 0, 100, int(task.get('actual_progress', 0)))
-                    new_completion = st.slider("프로젝트 진척률 (%)", 0, 100, int(task.get('completion_rate', 0)))
-                    new_deadline = st.date_input("마감일", value=pd.to_datetime(task.get('deadline')))
-                
-                new_description = st.text_area("업무 설명", value=task.get('description', ''))
-                
-                submitted = st.form_submit_button("💾 수정 내용 저장", type="primary")
-                
-                if submitted:
-                    st.info("Supabase 프로젝트 수정 기능은 현재 준비 중입니다. 곧 업데이트 예정입니다.")
-
     # ==================== 아카이브 관리 ====================
     st.markdown("---")
     st.subheader("🗄️ 아카이브 관리")
     
     # 모든 프로젝트 불러오기 (아카이브 포함)
-    all_df = load_tasks(show_archived=True)
+    try:
+        all_df = load_tasks(show_archived=True)
+    except:
+        all_df = pd.DataFrame()
     
     if not all_df.empty:
         selected_ids = st.multiselect(
             "보관하거나 보관 해제할 프로젝트 선택",
             options=all_df['id'].tolist(),
-            format_func=lambda x: f"{'🗄️ ' if all_df[all_df['id']==x].get('archived', pd.Series([0])).iloc[0] else '✅ '}"
+            format_func=lambda x: f"{'🗄️ ' if all_df[all_df['id']==x].get('archived', pd.Series([False])).iloc[0] else '✅ '}"
                                  f"[{all_df[all_df['id']==x].get('part', pd.Series(['미지정'])).iloc[0]}] "
                                  f"{all_df[all_df['id']==x]['project_name'].iloc[0]} - "
                                  f"{all_df[all_df['id']==x]['title'].iloc[0]}"
