@@ -4,34 +4,45 @@ import pandas as pd
 import streamlit as st
 
 def init_db():
-    """데이터베이스 초기화 - 기존 프로젝트 데이터 보호"""
+    """기존 프로젝트 데이터를 최대한 보호하면서 초기화"""
     conn = sqlite3.connect('projects.db', check_same_thread=False)
     c = conn.cursor()
     
-    # tasks 테이블이 이미 존재하는지 확인
+    # tasks 테이블 존재 여부 확인
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'")
     tasks_exists = c.fetchone() is not None
     
-    # tasks 테이블 생성 (part 컬럼 포함)
-    c.execute('''
-    CREATE TABLE IF NOT EXISTS tasks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_name TEXT NOT NULL,
-        title TEXT NOT NULL,
-        description TEXT,
-        assignee TEXT,
-        category TEXT,
-        status TEXT,
-        planned_progress INTEGER DEFAULT 0,
-        actual_progress INTEGER DEFAULT 0,
-        completion_rate INTEGER DEFAULT 0,
-        deadline DATE,
-        approved INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        archived INTEGER DEFAULT 0,
-        part TEXT DEFAULT '미지정'
-    )
-    ''')
+    if tasks_exists:
+        # 기존 테이블에 part 컬럼이 없으면 추가
+        c.execute("PRAGMA table_info(tasks)")
+        columns = [info[1] for info in c.fetchall()]
+        if 'part' not in columns:
+            try:
+                c.execute("ALTER TABLE tasks ADD COLUMN part TEXT DEFAULT '미지정'")
+                print("part 컬럼 추가 완료")
+            except Exception as e:
+                print(f"part 컬럼 추가 실패: {e}")
+    else:
+        # 테이블이 아예 없으면 새로 생성
+        c.execute('''
+        CREATE TABLE tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_name TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            assignee TEXT,
+            category TEXT,
+            status TEXT,
+            planned_progress INTEGER DEFAULT 0,
+            actual_progress INTEGER DEFAULT 0,
+            completion_rate INTEGER DEFAULT 0,
+            deadline DATE,
+            approved INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            archived INTEGER DEFAULT 0,
+            part TEXT DEFAULT '미지정'
+        )
+        ''')
     
     # team_members 테이블
     c.execute('''
@@ -42,7 +53,7 @@ def init_db():
     )
     ''')
     
-    # 기본 팀원 등록 (이미 있으면 추가 안 함)
+    # 기본 팀원 등록
     c.execute('SELECT COUNT(*) FROM team_members')
     if c.fetchone()[0] == 0:
         default_members = [
@@ -56,7 +67,6 @@ def init_db():
 
 
 def load_tasks(show_archived=False):
-    """태스크 로드"""
     conn = st.session_state.db_conn
     if show_archived:
         query = "SELECT * FROM tasks ORDER BY created_at DESC"
@@ -70,7 +80,6 @@ def load_tasks(show_archived=False):
 
 
 def load_team_members():
-    """팀원 로드"""
     conn = st.session_state.db_conn
     query = "SELECT * FROM team_members ORDER BY name"
     return pd.read_sql_query(query, conn)
