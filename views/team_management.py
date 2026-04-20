@@ -3,7 +3,7 @@ import streamlit as st
 from database import load_team_members
 
 def show_team_management():
-    """팀원 관리 화면"""
+    """팀원 관리 화면 - Supabase 버전"""
     st.title("👥 팀원 관리")
     st.markdown("---")
     
@@ -12,21 +12,25 @@ def show_team_management():
     
     st.subheader("현재 팀원")
     
-    for _, member in team_members.iterrows():
-        col1, col2, col3 = st.columns([1, 3, 1])
-        with col1:
-            st.markdown(f"## {member['emoji']}")
-        with col2:
-            st.markdown(f"### {member['name']}")
-        with col3:
-            if st.button("🗑️ 삭제", key=f"delete_{member['id']}"):
-                conn = st.session_state.db_conn
-                c = conn.cursor()
-                c.execute('DELETE FROM team_members WHERE id = ?', (member['id'],))
-                conn.commit()
-                st.success(f"{member['name']} 삭제됨")
-                st.rerun()
-    
+    if not team_members.empty:
+        for _, member in team_members.iterrows():
+            col1, col2, col3 = st.columns([1, 3, 1])
+            with col1:
+                st.markdown(f"## {member.get('emoji', '👤')}")
+            with col2:
+                st.markdown(f"### {member.get('name', '')}")
+            with col3:
+                if st.button("🗑️ 삭제", key=f"delete_{member.get('id')}"):
+                    try:
+                        supabase = st.session_state.db_conn
+                        supabase.table("team_members").delete().eq("id", member.get('id')).execute()
+                        st.success(f"{member.get('name')} 삭제됨")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"삭제 실패: {str(e)}")
+    else:
+        st.info("등록된 팀원이 없습니다.")
+
     st.markdown("---")
     st.subheader("새 팀원 추가")
     
@@ -41,15 +45,16 @@ def show_team_management():
         
         if submitted:
             if new_name:
-                conn = st.session_state.db_conn
-                c = conn.cursor()
                 try:
-                    c.execute('INSERT INTO team_members (name, emoji) VALUES (?, ?)',
-                             (new_name, new_emoji))
-                    conn.commit()
+                    supabase = st.session_state.db_conn
+                    data = {"name": new_name, "emoji": new_emoji}
+                    supabase.table("team_members").insert(data).execute()
                     st.success(f"✅ {new_name} 추가됨!")
                     st.rerun()
-                except st.errors.DuplicateKeyError:
-                    st.error("이미 존재하는 이름입니다!")
+                except Exception as e:
+                    if "duplicate" in str(e).lower():
+                        st.error("이미 존재하는 이름입니다!")
+                    else:
+                        st.error(f"추가 실패: {str(e)}")
             else:
                 st.error("이름을 입력해주세요!")
