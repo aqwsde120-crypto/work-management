@@ -89,7 +89,7 @@ def show_project_table(df, show_archived=False):
                                  f"{filtered_df[filtered_df['id']==x]['project_name'].iloc[0]}"
         )
         
-        tab1, tab2 = st.tabs(["📝 수정", "🗑️ 삭제"])
+        tab1, tab2 = st.tabs(["📝 수정하기", "🗑️ 삭제하기"])
         
         with tab1:
             with st.form("edit_form"):
@@ -98,7 +98,8 @@ def show_project_table(df, show_archived=False):
                     new_project_name = st.text_input("프로젝트명", value=filtered_df[filtered_df['id']==project_to_edit]['project_name'].iloc[0])
                     new_title = st.text_input("업무 제목", value=filtered_df[filtered_df['id']==project_to_edit]['title'].iloc[0])
                     new_assignee = st.text_input("담당자", value=filtered_df[filtered_df['id']==project_to_edit]['assignee'].iloc[0])
-                    new_part = st.selectbox("파트", options=PARTS, index=PARTS.index(filtered_df[filtered_df['id']==project_to_edit]['part'].iloc[0]))
+                    new_part = st.selectbox("파트", options=PARTS, 
+                                          index=PARTS.index(filtered_df[filtered_df['id']==project_to_edit]['part'].iloc[0]))
                     new_category = st.selectbox("분류", options=CATEGORIES)
                 
                 with col2:
@@ -108,15 +109,15 @@ def show_project_table(df, show_archived=False):
                     new_completion = st.slider("진척률 (%)", 0, 100, int(filtered_df[filtered_df['id']==project_to_edit]['completion_rate'].iloc[0]))
                     new_deadline = st.date_input("마감일", value=pd.to_datetime(filtered_df[filtered_df['id']==project_to_edit]['deadline'].iloc[0]))
                 
-                new_description = st.text_area("업무 설명", value=filtered_df[filtered_df['id']==project_to_edit].get('description', pd.Series([''])).iloc[0])
+                new_description = st.text_area("업무 설명", value=filtered_df[filtered_df['id']==project_to_edit].get('description', pd.Series([''])).iloc[0] or '')
                 
                 if st.form_submit_button("💾 수정 저장", type="primary"):
-                    st.info("✅ 수정 기능은 Supabase 완전 연동 후 업데이트 예정입니다.")
+                    st.info("프로젝트 수정 기능은 Supabase 완전 연동 후 업데이트 예정입니다.")
         
         with tab2:
             st.warning("⚠️ 삭제하면 복구할 수 없습니다!")
-            if st.button("🗑️ 프로젝트 삭제", type="secondary"):
-                if st.checkbox("정말 삭제하시겠습니까?"):
+            if st.button("🗑️ 이 프로젝트 삭제하기", type="secondary"):
+                if st.checkbox("정말 삭제하시겠습니까? (확인 체크)", key=f"delete_confirm_{project_to_edit}"):
                     try:
                         supabase = st.session_state.db_conn
                         supabase.table("tasks").delete().eq("id", project_to_edit).execute()
@@ -136,7 +137,6 @@ def show_project_table(df, show_archived=False):
         all_df = pd.DataFrame()
     
     if not all_df.empty:
-        # 보관 상태를 더 명확하게 표시
         selected_ids = st.multiselect(
             "보관하거나 보관 해제할 프로젝트 선택",
             options=all_df['id'].tolist(),
@@ -156,7 +156,6 @@ def show_project_table(df, show_archived=False):
                     count = 0
                     for tid in selected_ids:
                         try:
-                            # 이미 보관된 것은 제외하고 보관 처리
                             current = all_df[all_df['id'] == tid]['archived'].iloc[0]
                             if not current:
                                 supabase.table("tasks").update({"archived": True}).eq("id", tid).execute()
@@ -168,7 +167,7 @@ def show_project_table(df, show_archived=False):
                         time.sleep(2.0)
                         st.rerun()
                     else:
-                        st.info("선택한 프로젝트는 이미 보관되어 있습니다.")
+                        st.info("선택한 프로젝트는 이미 보관 상태입니다.")
         
         with col_b:
             if st.button("🔓 선택한 프로젝트 보관 해제하기", use_container_width=True):
