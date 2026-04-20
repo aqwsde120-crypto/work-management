@@ -1,6 +1,11 @@
 # config.py
 """설정 및 상수 파일"""
 
+# ==================== 앱 기본 정보 ====================
+APP_TITLE = "종근당 바이오QA팀 프로젝트 관리"
+APP_VERSION = "1.1.0"
+
+# ==================== 파트 및 옵션 ====================
 PARTS = ["Compliance", "QMS", "Product", "Validation", "미지정"]
 
 CATEGORIES = [
@@ -10,7 +15,5 @@ CATEGORIES = [
 
 STATUSES = ["진행 중", "검토 중", "완료", "일정 지연"]
 
-# 기본값들
+# 기본 비밀번호
 DEFAULT_PASSWORD = "team123"
-APP_TITLE = "팀 프로젝트 관리 시스템"
-APP_VERSION = "1.1.0"   # 모듈화 버전
