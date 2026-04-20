@@ -5,7 +5,6 @@
 import streamlit as st
 from datetime import datetime
 
-# 페이지 설정
 st.set_page_config(
     page_title="종근당 바이오QA팀 프로젝트 관리",
     page_icon="📊",
@@ -15,7 +14,7 @@ st.set_page_config(
 
 # 모듈 import
 from config import APP_TITLE, APP_VERSION
-from database import init_db, load_tasks, load_team_members
+from database import init_db, load_tasks, load_team_members, save_task
 from utils import load_custom_css
 
 from views.dashboard import show_dashboard
@@ -24,53 +23,19 @@ from views.kanban import show_kanban_board
 from views.add_project import show_add_project
 from views.team_management import show_team_management
 
-# ==================== 비밀번호 체크 ====================
-def check_password():
-    """비밀번호 보호 유지"""
-    def password_entered():
-        if st.session_state["password"] == st.secrets.get("app_password", "team123"):
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]
-        else:
-            st.session_state["password_correct"] = False
-
-    if "password_correct" not in st.session_state:
-        st.markdown(f"### 🔐 {APP_TITLE}")
-        st.markdown("---")
-        st.text_input("비밀번호를 입력하세요", type="password", on_change=password_entered, key="password")
-        st.info("💡 기본 비밀번호: team123")
-        return False
-
-    elif not st.session_state["password_correct"]:
-        st.markdown(f"### 🔐 {APP_TITLE}")
-        st.markdown("---")
-        st.text_input("비밀번호를 입력하세요", type="password", on_change=password_entered, key="password")
-        st.error("😕 비밀번호가 올바르지 않습니다.")
-        return False
-
-    else:
-        return True
-
 # ==================== 메인 앱 ====================
 def main():
-    # 비밀번호 체크 (유지)
-    if not check_password():
-        return
-
-    # 데이터베이스 초기화
+    # Supabase 연결
     if 'db_conn' not in st.session_state:
         st.session_state.db_conn = init_db()
-    
+
+    # 팀원 데이터 로드
     if 'team_members' not in st.session_state:
         st.session_state.team_members = load_team_members()
-    
-    if 'load_tasks_func' not in st.session_state:
-        st.session_state.load_tasks_func = load_tasks
 
-    # 커스텀 CSS 로드
     load_custom_css()
 
-    # ==================== 사이드바 ====================
+    # 사이드바
     with st.sidebar:
         st.title("🎯 종근당 바이오QA팀 프로젝트 관리")
         st.markdown("---")
@@ -88,12 +53,10 @@ def main():
         st.markdown("### 📈 빠른 통계")
         df = load_tasks(show_archived=show_archived)
         st.metric("전체 프로젝트", len(df))
-        st.metric("진행 중", len(df[df['status'] == '진행 중']))
+        st.metric("진행 중", len(df[df['status'] == '진행 중']) if not df.empty else 0)
         st.metric("평균 진척률", f"{df['completion_rate'].mean():.0f}%" if not df.empty else "0%")
         
         st.markdown("---")
-        
-        # ==================== 만든 사람 정보 ====================
         st.markdown("### 👤 만든 사람")
         st.markdown("""
         **바이오QA팀**  
@@ -108,7 +71,7 @@ def main():
     # 데이터 로드
     df = load_tasks()
 
-    # 메뉴에 따라 화면 표시
+    # 메뉴 표시
     if menu == "📊 대시보드":
         show_dashboard(df)
     elif menu == "📋 프로젝트 테이블":
