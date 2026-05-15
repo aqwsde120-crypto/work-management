@@ -82,28 +82,38 @@ def save_task(project_name, title, description, assignee, category, status,
     """새 프로젝트 저장"""
     supabase: Client = st.session_state.db_conn
     try:
-        assignee_str = ','.join(assignee) if isinstance(assignee, list) else str(assignee)
-        
+        # assignee 처리 개선
+        if isinstance(assignee, list):
+            assignee_str = ','.join(assignee)
+        elif assignee is None or assignee == "Choose options" or assignee == "":
+            assignee_str = ""
+        else:
+            assignee_str = str(assignee)
+
         data = {
             "project_name": project_name,
             "title": title,
-            "description": description,
+            "description": description or "",
             "assignee": assignee_str,
             "category": category,
             "status": status,
-            "planned_progress": planned_progress,
-            "actual_progress": actual_progress,
-            "completion_rate": completion_rate,
+            "planned_progress": float(planned_progress) if planned_progress else 0,
+            "actual_progress": float(actual_progress) if actual_progress else 0,
+            "completion_rate": float(completion_rate) if completion_rate else 0,
             "deadline": deadline,
-            "part": part
+            "part": part,
+            "archived": False
         }
         
         response = supabase.table("tasks").insert(data).execute()
         
         # 캐시 무효화
         load_tasks.clear()
-        st.success("✅ 태스크가 성공적으로 저장되었습니다.")
+        
+        st.success("✅ 프로젝트가 성공적으로 저장되었습니다!")
+        st.balloons()  # 저장 성공 시 효과
         return response.data
+        
     except Exception as e:
-        st.error(f"태스크 저장 실패: {e}")
+        st.error(f"❌ 프로젝트 저장 실패: {e}")
         return None
