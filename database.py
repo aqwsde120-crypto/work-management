@@ -48,7 +48,7 @@ def load_tasks(show_archived=False):
 
 @st.cache_data(ttl=60)
 def load_team_members():
-    """팀원 불러오기"""
+    """팀원 불러오기 - 이모지 문제 해결 버전"""
     supabase: Client = st.session_state.db_conn
     try:
         response = (
@@ -65,11 +65,13 @@ def load_team_members():
             st.info("📭 team_members 테이블에 데이터가 없습니다.")
             return pd.DataFrame()
         
-        # emoji → avatar 매핑 (기존 UI와 호환되도록)
-        if 'emoji' in df.columns:
-            df = df.rename(columns={'emoji': 'avatar'})
-        elif 'avatar' not in df.columns:
-            df['avatar'] = None
+        # 디버깅용 (현재 어떤 컬럼이 있는지 확인)
+        # st.write("현재 컬럼:", df.columns.tolist())
+        # st.write("샘플 데이터:", df.head(3))
+        
+        # emoji 컬럼 보존 (rename 하지 말고 그대로 유지)
+        if 'emoji' not in df.columns:
+            df['emoji'] = '👤'  # 기본값
         
         st.success(f"✅ 팀원 {len(df)}명 불러오기 성공")
         
