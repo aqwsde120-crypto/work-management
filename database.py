@@ -33,7 +33,7 @@ def load_tasks(show_archived=False):
 def load_team_members():
     """팀원 불러오기"""
     supabase: Client = st.session_state.db_conn
-    response = supabase.table("team_members").select("*").order("Name").execute()
+    response = supabase.table("team_members").select("*").execute()
     return pd.DataFrame(response.data)
 
 def save_task(project_name, title, description, assignee, category, status,
