@@ -45,17 +45,16 @@ def load_team_members():
             supabase
             .table("team_members")
             .select("*")
-            .order("created_at", desc=True)
+            .order("id", desc=True)        # ← created_at 대신 id로 변경
             .execute()
         )
         
-        st.write("team_members 데이터:", response.data)   # ← 디버깅용
+        # st.write("team_members 데이터:", response.data)  # 디버깅 필요할 때만 켜세요
         
         if response.data:
             df = pd.DataFrame(response.data)
             return df
         else:
-            st.info("team_members 테이블에 데이터가 없습니다.")
             return pd.DataFrame()
             
     except Exception as e:
