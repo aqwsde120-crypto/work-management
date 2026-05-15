@@ -5,9 +5,9 @@ from supabase import create_client, Client
 
 @st.cache_resource
 def get_supabase_client():
-    """Supabase 클라이언트 생성"""
-    url = st.secrets["supabase"]["SUPABASE_URL"]
-    key = st.secrets["supabase"]["SUPABASE_KEY"]
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_ANON_KEY"]
+
     return create_client(url, key)
 
 def init_db():
