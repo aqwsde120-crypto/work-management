@@ -40,17 +40,27 @@ def load_tasks(show_archived=False):
 def load_team_members():
     """팀원 불러오기"""
     supabase: Client = st.session_state.db_conn
-
-    response = (
-        supabase
-        .table("team_members")
-        .select("*")
-        .execute()
-    )
-
-    st.write("team_members 데이터:", response.data)
-
-    return pd.DataFrame(response.data)
+    try:
+        response = (
+            supabase
+            .table("team_members")
+            .select("*")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        
+        st.write("team_members 데이터:", response.data)   # ← 디버깅용
+        
+        if response.data:
+            df = pd.DataFrame(response.data)
+            return df
+        else:
+            st.info("team_members 테이블에 데이터가 없습니다.")
+            return pd.DataFrame()
+            
+    except Exception as e:
+        st.error(f"team_members 불러오기 실패: {e}")
+        return pd.DataFrame()
 
 def save_task(project_name, title, description, assignee, category, status,
               planned_progress, actual_progress, completion_rate, deadline, part):
