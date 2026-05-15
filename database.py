@@ -8,8 +8,9 @@ def get_supabase_client():
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_ANON_KEY"]
 
-    return create_client(url, key)
+    st.write("현재 연결된 Supabase URL:", url)
 
+    return create_client(url, key)
 def init_db():
     """Supabase 초기화 (클라이언트 반환)"""
     return get_supabase_client()
@@ -33,7 +34,16 @@ def load_tasks(show_archived=False):
 def load_team_members():
     """팀원 불러오기"""
     supabase: Client = st.session_state.db_conn
-    response = supabase.table("team_members").select("*").execute()
+
+    response = (
+        supabase
+        .table("team_members")
+        .select("*")
+        .execute()
+    )
+
+    st.write("team_members 데이터:", response.data)
+
     return pd.DataFrame(response.data)
 
 def save_task(project_name, title, description, assignee, category, status,
