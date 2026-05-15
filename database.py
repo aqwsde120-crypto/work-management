@@ -10,12 +10,14 @@ def get_supabase_client():
         key = st.secrets["SUPABASE_ANON_KEY"]
         
         client = create_client(url, key)
-        # st.success("✅ Supabase 연결 성공")  # 필요할 때만 켜세요 (매번 뜨면 거슬림)
-        return client
+        return client   # 성공 메시지는 주석 처리 (매번 뜨지 않게)
+    except KeyError as e:
+        st.error(f"❌ Secrets 키 누락: {e}")
+        st.info("Streamlit Cloud → Settings → Secrets 에 SUPABASE_URL과 SUPABASE_ANON_KEY를 추가했는지 확인해주세요.")
+        st.stop()   # 앱 멈추기
     except Exception as e:
-        st.error(f"❌ Supabase secrets 설정 오류: {e}")
-        st.info("Streamlit Cloud → Settings → Secrets 를 확인해주세요.")
-        raise
+        st.error(f"❌ Supabase 연결 실패: {e}")
+        st.stop()
 
 
 def init_db():
