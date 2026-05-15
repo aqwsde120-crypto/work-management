@@ -5,15 +5,21 @@ from supabase import create_client, Client
 
 @st.cache_resource
 def get_supabase_client():
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_ANON_KEY"]
+    try:
+        url = st.secrets["SUPABASE_URL"]
+        key = st.secrets["SUPABASE_ANON_KEY"]
+        
+        st.success("Supabase 연결 성공")  # 디버깅용 (나중에 지워도 됨)
+        return create_client(url, key)
+    except Exception as e:
+        st.error(f"Supabase secrets 설정 오류: {e}")
+        st.info("`.streamlit/secrets.toml` 파일을 확인해주세요.")
+        raise
 
-    st.write("현재 연결된 Supabase URL:", url)
-
-    return create_client(url, key)
 def init_db():
-    """Supabase 초기화 (클라이언트 반환)"""
-    return get_supabase_client()
+    if 'db_conn' not in st.session_state:
+        st.session_state.db_conn = get_supabase_client()
+    return st.session_state.db_conn
 
 @st.cache_data(ttl=60)
 def load_tasks(show_archived=False):
